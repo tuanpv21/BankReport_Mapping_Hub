@@ -92,6 +92,49 @@
             <i class="fa-solid fa-file-word text-blue"></i>
             <span>Word</span>
           </button>
+          <div class="divider-v"></div>
+          <!-- User Profile & Account Capsule -->
+          <div class="user-profile-menu-wrap" id="user-profile-wrap">
+            <button class="user-pill-btn" id="btn-user-profile" title="Tài khoản & Phân quyền">
+              <div class="user-avatar" id="topbar-user-avatar" style="background:#059669;">PT</div>
+              <div class="user-info-text">
+                <span class="user-fullname" id="topbar-user-name">Phùng Văn Tuấn</span>
+                <span class="user-dept" id="topbar-user-dept">Kế toán &amp; Tài chính</span>
+              </div>
+              <i class="fa-solid fa-chevron-down text-subtle" style="font-size:10px; margin-left:4px;"></i>
+            </button>
+            <div class="user-dropdown-menu" id="user-dropdown-menu">
+              <div class="dropdown-user-header">
+                <div class="d-flex align-center gap-2">
+                  <div class="user-avatar-lg" id="dropdown-user-avatar" style="background:#059669;">PT</div>
+                  <div>
+                    <strong id="dropdown-user-name" style="font-size:14px; display:block;">Phùng Văn Tuấn</strong>
+                    <span id="dropdown-user-role" class="text-subtle" style="font-size:11px;">Chuyên viên chính</span>
+                  </div>
+                </div>
+                <div class="dropdown-dept-tag mt-2" id="dropdown-user-dept">Kế toán &amp; Quản lý Tài chính</div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <div class="dropdown-label">CHUYỂN NHANH NGƯỜI DÙNG:</div>
+              <div class="quick-switch-users" id="quick-switch-users-list">
+                <!-- Dynamically loaded -->
+              </div>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" id="btn-open-register-modal">
+                <i class="fa-solid fa-user-plus text-emerald"></i>
+                <span>Tạo tài khoản mới</span>
+              </button>
+              <button class="dropdown-item" id="btn-open-login-modal">
+                <i class="fa-solid fa-right-to-bracket text-primary"></i>
+                <span>Đăng nhập tài khoản khác</span>
+              </button>
+              <button class="dropdown-item text-rose" id="btn-action-logout">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span>Đăng xuất</span>
+              </button>
+            </div>
+          </div>
+
         </div>
       </header>
 
@@ -360,6 +403,54 @@
               <div class="detail-search-box" style="width: 320px;">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="matrix-cell-search" placeholder="Tìm theo mã TK, tên chỉ tiêu, mã dòng...">
+              </div>
+            </div>
+          </div>
+
+
+          <!-- Collapsible Discussion Panel -->
+          <div class="card-clean mb-4 discussion-panel" id="matrix-discussion-panel">
+            <div class="card-clean-header flex-between cursor-pointer" id="matrix-discussion-toggle">
+              <div class="d-flex align-center gap-3">
+                <div class="io-icon bg-indigo-subtle text-indigo"><i class="fa-solid fa-comments"></i></div>
+                <div>
+                  <h3 class="m-0" id="matrix-discussion-title">Trao đổi &amp; Góp ý Nghiệp vụ Mẫu Biểu</h3>
+                  <span class="text-subtle" style="font-size:12px;">Diễn đàn trao đổi về quy tắc tính, số dư tài khoản GL, hoặc đối soát giữa Kế toán - TT35 - IT.</span>
+                </div>
+              </div>
+              <div class="d-flex align-center gap-2">
+                <span class="badge-count" id="matrix-comment-count-badge">0 trao đổi</span>
+                <button class="btn-icon-sm" id="matrix-discussion-toggle-icon" title="Mở/Thu gọn"><i class="fa-solid fa-chevron-up"></i></button>
+              </div>
+            </div>
+            <div class="discussion-body p-3" id="matrix-discussion-content">
+              <div class="comments-list" id="matrix-comments-list">
+                <!-- Dynamically rendered -->
+              </div>
+              <div class="comment-input-wrap mt-3 pt-3 border-top">
+                <div class="comment-input-header flex-between mb-2">
+                  <div class="d-flex align-center gap-2">
+                    <span style="font-size:12px; font-weight:600;">Ý kiến của:</span>
+                    <span class="badge-author font-bold" id="matrix-comment-author-badge">Phùng Văn Tuấn (Kế toán)</span>
+                  </div>
+                  <div class="d-flex align-center gap-2">
+                    <label style="font-size:12px; font-weight:600;">Phân loại:</label>
+                    <select id="matrix-comment-tag-select" class="select-clean" style="font-size:12px; padding:3px 8px;">
+                      <option value="THAO_LUAN">💬 Thảo luận nghiệp vụ</option>
+                      <option value="CAN_LAM_RO">❓ Cần làm rõ logic</option>
+                      <option value="DONG_Y">✅ Đã thống nhất / Duyệt</option>
+                      <option value="KY_THUAT">💻 Ghi chú Kỹ thuật / SQL</option>
+                    </select>
+                  </div>
+                </div>
+                <textarea id="matrix-comment-textarea" class="textarea-clean w-100" rows="2" placeholder="Nhập ý kiến trao đổi, giải thích cách tính, lưu ý tài khoản hoặc đề xuất điều chỉnh..."></textarea>
+                <div class="flex-between mt-2">
+                  <span class="text-subtle" style="font-size:11px;"><i class="fa-solid fa-circle-info"></i> Bình luận được lưu trữ và chia sẻ ngay lập tức đến toàn bộ thành viên dự án.</span>
+                  <button id="btn-submit-matrix-comment" class="btn btn-primary-gradient">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Gửi ý kiến</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -934,6 +1025,22 @@
             <label>Ghi chú nghiệp vụ:</label>
             <input type="text" id="matrix-form-notes" class="input-clean w-100" placeholder="Lưu ý hoặc điều kiện đặc biệt...">
           </div>
+
+          <div class="field-discussion-box mt-3 pt-3 border-top">
+            <div class="flex-between mb-2">
+              <label style="font-weight:700; font-size:12px; margin:0;"><i class="fa-solid fa-comments text-indigo"></i> Trao đổi &amp; Lưu ý về ô chỉ tiêu này:</label>
+              <span class="badge-count" id="matrix-cell-comments-count">0</span>
+            </div>
+            <div class="comments-list" id="matrix-cell-comments-list" style="max-height: 140px; overflow-y:auto; gap:6px;">
+              <!-- Cell comments -->
+            </div>
+            <div class="d-flex gap-2 mt-2">
+              <input type="text" id="matrix-cell-comment-input" class="input-clean flex-grow-1" placeholder="Nhập lưu ý hoặc ý kiến về ô này..." style="font-size:12px;">
+              <button type="button" id="btn-submit-cell-comment" class="btn btn-primary-gradient" style="padding:6px 12px; font-size:12px;">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -967,6 +1074,94 @@
           <span>Sao chép mã</span>
         </button>
         <button class="btn btn-primary-gradient btn-close-modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: USER AUTH & ACCOUNT CREATION -->
+  <div class="modal-backdrop" id="modal-auth">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-auth-tabs w-100">
+          <button class="auth-tab-btn active" id="tab-auth-login-btn">Đăng nhập</button>
+          <button class="auth-tab-btn" id="tab-auth-register-btn">Tạo Tài Khoản Mới</button>
+        </div>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tab 1: Login Form -->
+        <form id="form-auth-login">
+          <div class="form-group-clean mb-3">
+            <label>Tên đăng nhập (Username): *</label>
+            <input type="text" id="login-username" class="input-clean w-100" placeholder="Ví dụ: tuanpv, admin, it_core..." required>
+          </div>
+          <div class="form-group-clean mb-3">
+            <label>Mật khẩu: *</label>
+            <input type="password" id="login-password" class="input-clean w-100" placeholder="Nhập mật khẩu..." required>
+          </div>
+
+          <div class="mb-3 p-2 bg-subtle" style="border-radius:4px; font-size:11px; color:var(--text-subtle);">
+            <strong>Tài khoản demo sẵn có:</strong>
+            <div class="d-flex gap-2 mt-1">
+              <span class="badge badge-draft cursor-pointer" onclick="document.getElementById('login-username').value='tuanpv'; document.getElementById('login-password').value='123456';">tuanpv / 123456</span>
+              <span class="badge badge-draft cursor-pointer" onclick="document.getElementById('login-username').value='admin'; document.getElementById('login-password').value='admin123';">admin / admin123</span>
+              <span class="badge badge-draft cursor-pointer" onclick="document.getElementById('login-username').value='it_core'; document.getElementById('login-password').value='123456';">it_core / 123456</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary-gradient w-100 btn-lg">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Đăng nhập hệ thống</span>
+          </button>
+        </form>
+
+        <!-- Tab 2: Register Form -->
+        <form id="form-auth-register" style="display:none;">
+          <div class="form-row-2 mb-3">
+            <div class="form-group-clean">
+              <label>Tên đăng nhập (Username): *</label>
+              <input type="text" id="reg-username" class="input-clean w-100" placeholder="Ví dụ: hoa.nt, minh.pv..." required>
+            </div>
+            <div class="form-group-clean">
+              <label>Mật khẩu: *</label>
+              <input type="password" id="reg-password" class="input-clean w-100" placeholder="Tối thiểu 6 ký tự..." required>
+            </div>
+          </div>
+
+          <div class="form-group-clean mb-3">
+            <label>Họ và tên đầy đủ: *</label>
+            <input type="text" id="reg-fullname" class="input-clean w-100" placeholder="Ví dụ: Nguyễn Thị Hoa..." required>
+          </div>
+
+          <div class="form-row-2 mb-3">
+            <div class="form-group-clean">
+              <label>Phòng ban / Phân hệ: *</label>
+              <select id="reg-department" class="select-clean w-100">
+                <option value="Kế toán & Quản lý Tài chính">Kế toán & Quản lý Tài chính</option>
+                <option value="Quản lý Rủi ro & Báo cáo NHNN">Quản lý Rủi ro & Báo cáo NHNN</option>
+                <option value="Tín dụng & Quản lý CIC">Tín dụng & Quản lý CIC</option>
+                <option value="Khối CNTT & Cơ sở dữ liệu">Khối CNTT & Cơ sở dữ liệu</option>
+                <option value="Ban Giám đốc & Lãnh đạo">Ban Giám đốc & Lãnh đạo</option>
+              </select>
+            </div>
+            <div class="form-group-clean">
+              <label>Vai trò / Chức vụ: *</label>
+              <select id="reg-role" class="select-clean w-100">
+                <option value="Chuyên viên nghiệp vụ">Chuyên viên nghiệp vụ</option>
+                <option value="Chuyên viên chính">Chuyên viên chính</option>
+                <option value="Kỹ sư CSDL / Core">Kỹ sư CSDL / Core</option>
+                <option value="Trưởng nhóm / Phụ trách">Trưởng nhóm / Phụ trách</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-emerald-solid w-100 btn-lg">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Tạo tài khoản &amp; Bắt đầu làm việc</span>
+          </button>
+        </form>
       </div>
     </div>
   </div>

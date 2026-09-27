@@ -11,8 +11,9 @@ import json
 import sqlite3
 import webbrowser
 import threading
-from flask import Flask, render_template, render_template_string, request, jsonify, send_file
+from flask import Flask, render_template, render_template_string, request, jsonify, send_file, session
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import openpyxl
 
 import ingest_parser as parser
@@ -21,6 +22,7 @@ import exporter
 import maubieu_parser
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "bankreport_secret_key_2026_super_secure")
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
@@ -63,6 +65,40 @@ def init_schema():
         if col not in m_cols:
             cur.execute(f"ALTER TABLE mappings ADD COLUMN {col} {col_t}")
 
+
+    # Users table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password_hash VARCHAR(200) NOT NULL,
+            full_name VARCHAR(100) NOT NULL,
+            department VARCHAR(100) DEFAULT 'Kế toán & Quản lý Tài chính',
+            role VARCHAR(50) DEFAULT 'Chuyên viên',
+            avatar_color VARCHAR(20) DEFAULT '#1e3a8a',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+
+    # Comments & Collaboration table
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username VARCHAR(50) NOT NULL,
+            full_name VARCHAR(100) NOT NULL,
+            department VARCHAR(100),
+            avatar_color VARCHAR(20) DEFAULT '#1e3a8a',
+            target_type VARCHAR(20) NOT NULL,
+            target_id VARCHAR(100) NOT NULL,
+            report_code VARCHAR(50),
+            field_code VARCHAR(100),
+            content TEXT NOT NULL,
+            tag VARCHAR(50) DEFAULT 'THAO_LUAN',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -75,14 +111,46 @@ def ensure_data_seeded():
         matrix_cnt = 0
         if "has_matrix" in has_matrix_cols:
             matrix_cnt = cur.execute("SELECT COUNT(*) FROM reports WHERE has_matrix = 1").fetchone()[0]
-        conn.close()
-
         if cnt == 0:
             print("[Startup] Initializing base report mappings...")
             parser.run_full_sync()
         if matrix_cnt == 0:
             print("[Startup] Seeding sample matrix templates (A02211, G04224, etc.)...")
             maubieu_parser.import_all_maubieu_templates()
+
+        # Seed default demo accounts
+        user_cnt = cur.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        if user_cnt == 0:
+            demo_users = [
+                ("tuanpv", generate_password_hash("123456"), "Phùng Văn Tuấn", "Kế toán & Quản lý Tài chính", "Chuyên viên chính", "#059669"),
+                ("admin", generate_password_hash("admin123"), "Quản trị viên", "Ban Quản lý Rủi ro & Báo cáo", "Quản trị hệ thống", "#1e3a8a"),
+                ("it_core", generate_password_hash("123456"), "Nguyễn Văn IT", "Khối CNTT & Cơ sở dữ liệu", "Kỹ sư CSDL / Core", "#7c3aed"),
+                ("cic_analyst", generate_password_hash("123456"), "Trần Thị Nghiệp Vụ", "Phòng Tín dụng & Quản lý CIC", "Chuyên viên nghiệp vụ", "#d97706")
+            ]
+            cur.executemany("""
+                INSERT INTO users (username, password_hash, full_name, department, role, avatar_color)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, demo_users)
+            conn.commit()
+            print("[Startup] Seeded demo users")
+
+        # Seed sample comments
+        comm_cnt = cur.execute("SELECT COUNT(*) FROM comments").fetchone()[0]
+        if comm_cnt == 0:
+            sample_comments = [
+                (1, "tuanpv", "Phùng Văn Tuấn", "Kế toán & Quản lý Tài chính", "#059669", "REPORT", "A02211", "A02211", "", "Mẫu A02211 đối với tài khoản 1011 (Tiền mặt) cần lưu ý số dư cuối kỳ phải khớp tuyệt đối với sổ cái GL ngày của từng chi nhánh.", "THAO_LUAN"),
+                (2, "admin", "Quản trị viên", "Ban Quản lý Rủi ro & Báo cáo", "#1e3a8a", "REPORT", "G04224", "G04224", "", "Công thức tính vốn cấp 1 (A1 - A2...) đã đối chiếu khớp với quy định tại Thông tư 41/2016/TT-NHNN.", "DONG_Y"),
+                (3, "it_core", "Nguyễn Văn IT", "Khối CNTT & Cơ sở dữ liệu", "#7c3aed", "REPORT", "KU", "KU", "", "Bảng CIC_KU được sinh từ procedure fn_CIC_KU quét trực tiếp từ bảng ODS_OD_ACCOUNT, chạy định kỳ hàng ngày lúc 23:00.", "KY_THUAT"),
+                (1, "tuanpv", "Phùng Văn Tuấn", "Kế toán & Quản lý Tài chính", "#059669", "FIELD", "R-100_DNDK", "A02211", "R-100_DNDK", "Chỉ tiêu Tiền mặt Dư nợ đầu kỳ: Lấy tổng số dư nợ đầu kỳ tài khoản 1011 từ bảng t1080_tb_gl_bal_quy_doi.", "THAO_LUAN")
+            ]
+            cur.executemany("""
+                INSERT INTO comments (user_id, username, full_name, department, avatar_color, target_type, target_id, report_code, field_code, content, tag)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, sample_comments)
+            conn.commit()
+            print("[Startup] Seeded sample comments")
+
+        conn.close()
     except Exception as e:
         print(f"[Startup Warning] Seeding check: {e}")
 
@@ -637,6 +705,223 @@ def import_excel():
         return jsonify({"success": True, "imported_count": imported})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ==========================================================
+# AUTH & USER ACCOUNTS APIS
+# ==========================================================
+
+@app.route("/api/auth/current")
+def get_current_user():
+    user_id = session.get("user_id")
+    conn = get_db()
+    cur = conn.cursor()
+    user = None
+    if user_id:
+        user = cur.execute("SELECT id, username, full_name, department, role, avatar_color FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        # Default fallback to tuanpv
+        user = cur.execute("SELECT id, username, full_name, department, role, avatar_color FROM users WHERE username = 'tuanpv'").fetchone()
+        if user:
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            
+    conn.close()
+    if user:
+        return jsonify({"authenticated": True, "user": dict(user)})
+    return jsonify({"authenticated": False, "user": None})
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+
+    if not username or not password:
+        return jsonify({"success": False, "error": "Vui lòng nhập tên đăng nhập và mật khẩu"}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+    user = cur.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+
+    if not user or not check_password_hash(user["password_hash"], password):
+        return jsonify({"success": False, "error": "Tên đăng nhập hoặc mật khẩu không chính xác"}), 401
+
+    session["user_id"] = user["id"]
+    session["username"] = user["username"]
+
+    user_dict = {
+        "id": user["id"],
+        "username": user["username"],
+        "full_name": user["full_name"],
+        "department": user["department"],
+        "role": user["role"],
+        "avatar_color": user["avatar_color"]
+    }
+    return jsonify({"success": True, "user": user_dict})
+
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    full_name = data.get("full_name", "").strip()
+    department = data.get("department", "Kế toán & Quản lý Tài chính").strip()
+    role = data.get("role", "Chuyên viên").strip()
+
+    if not username or not password or not full_name:
+        return jsonify({"success": False, "error": "Vui lòng điền đầy đủ Tên đăng nhập, Mật khẩu và Họ tên"}), 400
+
+    colors = ["#1e3a8a", "#059669", "#7c3aed", "#d97706", "#dc2626", "#0284c7", "#4f46e5", "#0d9488"]
+    import random
+    avatar_color = random.choice(colors)
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO users (username, password_hash, full_name, department, role, avatar_color)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (username, generate_password_hash(password), full_name, department, role, avatar_color))
+        conn.commit()
+        user_id = cur.lastrowid
+        conn.close()
+
+        session["user_id"] = user_id
+        session["username"] = username
+
+        return jsonify({
+            "success": True,
+            "user": {
+                "id": user_id,
+                "username": username,
+                "full_name": full_name,
+                "department": department,
+                "role": role,
+                "avatar_color": avatar_color
+            }
+        })
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"success": False, "error": f"Tên đăng nhập '{username}' đã tồn tại, vui lòng chọn tên khác"}), 400
+    except Exception as e:
+        conn.close()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/auth/switch", methods=["POST"])
+def auth_switch_user():
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    conn = get_db()
+    cur = conn.cursor()
+    user = cur.execute("SELECT id, username, full_name, department, role, avatar_color FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"success": False, "error": "Tài khoản không tồn tại"}), 404
+
+    session["user_id"] = user["id"]
+    session["username"] = user["username"]
+    return jsonify({"success": True, "user": dict(user)})
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    session.clear()
+    return jsonify({"success": True})
+
+@app.route("/api/users")
+def get_users():
+    conn = get_db()
+    cur = conn.cursor()
+    rows = cur.execute("SELECT id, username, full_name, department, role, avatar_color, created_at FROM users ORDER BY id").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+# ==========================================================
+# COMMENTS & COLLABORATION APIS
+# ==========================================================
+
+@app.route("/api/comments")
+def get_comments():
+    target_type = request.args.get("target_type") # 'REPORT' or 'FIELD'
+    target_id = request.args.get("target_id")     # report_code or field_id
+    report_code = request.args.get("report_code")
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    sql = "SELECT * FROM comments WHERE 1=1"
+    params = []
+    
+    if target_type:
+        sql += " AND target_type = ?"
+        params.append(target_type)
+    if target_id:
+        sql += " AND target_id = ?"
+        params.append(target_id)
+    if report_code:
+        sql += " AND report_code = ?"
+        params.append(report_code)
+        
+    sql += " ORDER BY id DESC LIMIT 200"
+    rows = cur.execute(sql, params).fetchall()
+    conn.close()
+    
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/comments", methods=["POST"])
+def create_comment():
+    data = request.json or {}
+    target_type = data.get("target_type", "REPORT").upper()
+    target_id = str(data.get("target_id", "")).strip()
+    report_code = str(data.get("report_code", "")).strip()
+    field_code = str(data.get("field_code", "")).strip()
+    content = data.get("content", "").strip()
+    tag = data.get("tag", "THAO_LUAN")
+
+    if not target_id or not content:
+        return jsonify({"success": False, "error": "Nội dung bình luận không được để trống"}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Get author
+    user_id = session.get("user_id")
+    user = None
+    if user_id:
+        user = cur.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        uname = data.get("username", "tuanpv")
+        user = cur.execute("SELECT * FROM users WHERE username = ?", (uname,)).fetchone()
+    if not user:
+        user = cur.execute("SELECT * FROM users LIMIT 1").fetchone()
+
+    author_id = user["id"] if user else 1
+    username = user["username"] if user else "tuanpv"
+    full_name = user["full_name"] if user else "Phùng Văn Tuấn"
+    department = user["department"] if user else "Kế toán & Quản lý Tài chính"
+    avatar_color = user["avatar_color"] if user else "#059669"
+
+    cur.execute("""
+        INSERT INTO comments (user_id, username, full_name, department, avatar_color, target_type, target_id, report_code, field_code, content, tag)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (author_id, username, full_name, department, avatar_color, target_type, target_id, report_code or target_id, field_code, content, tag))
+    conn.commit()
+    new_id = cur.lastrowid
+    
+    new_row = cur.execute("SELECT * FROM comments WHERE id = ?", (new_id,)).fetchone()
+    conn.close()
+
+    return jsonify({"success": True, "comment": dict(new_row)})
+
+@app.route("/api/comments/<int:id>", methods=["DELETE"])
+def delete_comment(id):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM comments WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5050")

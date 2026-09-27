@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initModals();
   initSync();
 
+  initAuthAndUsers();
+  initComments();
   loadStats();
   loadReports();
 
@@ -798,6 +800,39 @@ insert into CIC_KU
       });
     }
 
+    const btnSubmitCellComm = document.getElementById("btn-submit-cell-comment");
+    if (btnSubmitCellComm) {
+      btnSubmitCellComm.addEventListener("click", async () => {
+        const input = document.getElementById("matrix-cell-comment-input");
+        if (!input || !input.value.trim() || !activeMatrixCell) return;
+        const content = input.value.trim();
+        const cellTargetId = activeMatrixCell.row_id ? `${activeMatrixCell.row_id}_${activeMatrixCell.target_column || activeMatrixCell.field_code}` : String(activeMatrixCell.id);
+
+        try {
+          const res = await fetch("/api/comments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              target_type: "FIELD",
+              target_id: cellTargetId,
+              report_code: activeMatrixCell.report_code,
+              field_code: activeMatrixCell.field_code || activeMatrixCell.target_column,
+              content: content,
+              tag: "THAO_LUAN",
+              username: currentUser.username
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            input.value = "";
+            loadMatrixCellComments(activeMatrixCell);
+            showToast("Đã lưu trao đổi về ô chỉ tiêu!", "success");
+          }
+        } catch (err) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        }
+      });
+    }
     const btnSaveCell = document.getElementById("btn-save-matrix-cell");
     if (btnSaveCell) {
       btnSaveCell.addEventListener("click", saveMatrixCellForm);
@@ -893,6 +928,7 @@ insert into CIC_KU
       if (elProc) elProc.textContent = procCount;
 
       renderMatrixTable();
+      loadReportComments(reportCode);
     } catch (e) {
       console.error("Error loading matrix data:", e);
       if (tbody) {
@@ -1012,6 +1048,48 @@ insert into CIC_KU
 
     updateCalcMethodFormBlocks(c.calc_method || "GL_CONFIG");
     modal.classList.add("active");
+    activeMatrixCell = c;
+    loadMatrixCellComments(c);
+  }
+
+  let activeMatrixCell = null;
+  async function loadMatrixCellComments(c) {
+    const list = document.getElementById("matrix-cell-comments-list");
+    const countTag = document.getElementById("matrix-cell-comments-count");
+    if (!list) return;
+    list.innerHTML = '<div class="text-center py-2 text-muted" style="font-size:11px;">Đang tải trao đổi...</div>';
+
+    const cellTargetId = c.row_id ? `${c.row_id}_${c.target_column || c.field_code}` : String(c.id);
+    try {
+      const res = await fetch(`/api/comments?target_type=FIELD&target_id=${cellTargetId}&report_code=${c.report_code}`);
+      const comments = await res.json();
+      if (countTag) countTag.textContent = comments.length;
+      list.innerHTML = "";
+
+      if (comments.length === 0) {
+        list.innerHTML = '<div class="text-center py-2 text-muted" style="font-size:11px;">Chưa có trao đổi nào cho ô này.</div>';
+        return;
+      }
+
+      comments.forEach(cm => {
+        const item = document.createElement("div");
+        item.className = "comment-card";
+        item.style.padding = "6px 10px";
+        item.innerHTML = `
+          <div class="comment-avatar" style="width:24px; height:24px; font-size:10px; background-color:${cm.avatar_color || '#1e3a8a'}">${getInitials(cm.full_name)}</div>
+          <div class="comment-content-wrap">
+            <div class="comment-header" style="margin-bottom:2px;">
+              <span class="comment-author-name" style="font-size:11px;">${escapeHtml(cm.full_name)}</span>
+              <span class="comment-time" style="font-size:10px;">${escapeHtml(formatRelativeTime(cm.created_at))}</span>
+            </div>
+            <div class="comment-text" style="font-size:11px; margin:2px 0;">${escapeHtml(cm.content)}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    } catch (e) {
+      list.innerHTML = '<div class="text-center py-2 text-rose" style="font-size:11px;">Lỗi tải trao đổi</div>';
+    }
   }
 
   async function saveMatrixCellForm() {
@@ -1059,6 +1137,438 @@ insert into CIC_KU
       }
     } catch (e) {
       showToast("Lỗi kết nối máy chủ", "error");
+    }
+  }
+
+
+  // ==========================================================
+  // USER ACCOUNTS & AUTHENTICATION LOGIC
+  // ==========================================================
+  let currentUser = {
+    id: 1,
+    username: "tuanpv",
+    full_name: "Phùng Văn Tuấn",
+    department: "Kế toán & Quản lý Tài chính",
+    role: "Chuyên viên chính",
+    avatar_color: "#059669"
+  };
+
+  function getInitials(name) {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function formatRelativeTime(dateStr) {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr.replace(" ", "T"));
+      const now = new Date();
+      const diffMs = now - d;
+      const diffSec = Math.floor(diffMs / 1000);
+      const diffMin = Math.floor(diffSec / 60);
+      const diffHour = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHour / 24);
+
+      if (diffSec < 60) return "Vừa xong";
+      if (diffMin < 60) return `${diffMin} phút trước`;
+      if (diffHour < 24) return `${diffHour} giờ trước`;
+      if (diffDay < 7) return `${diffDay} ngày trước`;
+      return d.toLocaleDateString("vi-VN");
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  async function loadCurrentUser() {
+    try {
+      const res = await fetch("/api/auth/current");
+      const data = await res.json();
+      if (data.user) {
+        currentUser = data.user;
+        updateUserUI();
+      }
+      loadQuickUsers();
+    } catch (e) {
+      console.error("Error loading user:", e);
+    }
+  }
+
+  function updateUserUI() {
+    const initials = getInitials(currentUser.full_name);
+
+    const topAvatar = document.getElementById("topbar-user-avatar");
+    const topName = document.getElementById("topbar-user-name");
+    const topDept = document.getElementById("topbar-user-dept");
+
+    if (topAvatar) {
+      topAvatar.textContent = initials;
+      topAvatar.style.backgroundColor = currentUser.avatar_color || "#059669";
+    }
+    if (topName) topName.textContent = currentUser.full_name;
+    if (topDept) topDept.textContent = currentUser.department || currentUser.role;
+
+    const dropAvatar = document.getElementById("dropdown-user-avatar");
+    const dropName = document.getElementById("dropdown-user-name");
+    const dropRole = document.getElementById("dropdown-user-role");
+    const dropDept = document.getElementById("dropdown-user-dept");
+
+    if (dropAvatar) {
+      dropAvatar.textContent = initials;
+      dropAvatar.style.backgroundColor = currentUser.avatar_color || "#059669";
+    }
+    if (dropName) dropName.textContent = currentUser.full_name;
+    if (dropRole) dropRole.textContent = currentUser.role || "Chuyên viên";
+    if (dropDept) dropDept.textContent = currentUser.department || "Phòng Nghiệp vụ";
+
+    // Update comment author badge
+    const commAuthor = document.getElementById("matrix-comment-author-badge");
+    if (commAuthor) {
+      commAuthor.textContent = `${currentUser.full_name} (${currentUser.role || currentUser.department})`;
+    }
+  }
+
+  async function loadQuickUsers() {
+    const list = document.getElementById("quick-switch-users-list");
+    if (!list) return;
+
+    try {
+      const res = await fetch("/api/users");
+      const users = await res.json();
+      list.innerHTML = "";
+
+      users.forEach(u => {
+        const btn = document.createElement("button");
+        btn.className = `quick-user-btn ${u.username === currentUser.username ? 'active' : ''}`;
+        const initials = getInitials(u.full_name);
+        btn.innerHTML = `
+          <div class="quick-user-avatar" style="background-color: ${u.avatar_color || '#1e3a8a'}">${initials}</div>
+          <div class="quick-user-info">
+            <span class="quick-user-name">${escapeHtml(u.full_name)}</span>
+            <span class="quick-user-dept">${escapeHtml(u.role || u.department)}</span>
+          </div>
+        `;
+
+        btn.addEventListener("click", async () => {
+          try {
+            const swRes = await fetch("/api/auth/switch", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: u.username })
+            });
+            const swData = await swRes.json();
+            if (swData.success) {
+              currentUser = swData.user;
+              updateUserUI();
+              loadQuickUsers();
+              document.getElementById("user-dropdown-menu").classList.remove("active");
+              showToast(`Đã chuyển sang tài khoản: ${currentUser.full_name}`, "success");
+            }
+          } catch (err) {
+            showToast("Lỗi chuyển tài khoản", "error");
+          }
+        });
+
+        list.appendChild(btn);
+      });
+    } catch (e) {
+      console.error("Error loading quick users:", e);
+    }
+  }
+
+  function initAuthAndUsers() {
+    loadCurrentUser();
+
+    // Toggle dropdown
+    const btnProfile = document.getElementById("btn-user-profile");
+    const dropdown = document.getElementById("user-dropdown-menu");
+
+    if (btnProfile && dropdown) {
+      btnProfile.addEventListener("click", (e) => {
+        e.stopPropagation();
+        dropdown.classList.toggle("active");
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#user-profile-wrap")) {
+          dropdown.classList.remove("active");
+        }
+      });
+    }
+
+    // Modal Auth Tab switching
+    const modalAuth = document.getElementById("modal-auth");
+    const tabLoginBtn = document.getElementById("tab-auth-login-btn");
+    const tabRegBtn = document.getElementById("tab-auth-register-btn");
+    const formLogin = document.getElementById("form-auth-login");
+    const formReg = document.getElementById("form-auth-register");
+
+    if (tabLoginBtn && tabRegBtn) {
+      tabLoginBtn.addEventListener("click", () => {
+        tabLoginBtn.classList.add("active");
+        tabRegBtn.classList.remove("active");
+        formLogin.style.display = "block";
+        formReg.style.display = "none";
+      });
+
+      tabRegBtn.addEventListener("click", () => {
+        tabRegBtn.classList.add("active");
+        tabLoginBtn.classList.remove("active");
+        formLogin.style.display = "none";
+        formReg.style.display = "block";
+      });
+    }
+
+    // Open modals
+    const btnOpenLogin = document.getElementById("btn-open-login-modal");
+    if (btnOpenLogin) {
+      btnOpenLogin.addEventListener("click", () => {
+        dropdown.classList.remove("active");
+        if (modalAuth) {
+          modalAuth.classList.add("active");
+          tabLoginBtn.click();
+        }
+      });
+    }
+
+    const btnOpenReg = document.getElementById("btn-open-register-modal");
+    if (btnOpenReg) {
+      btnOpenReg.addEventListener("click", () => {
+        dropdown.classList.remove("active");
+        if (modalAuth) {
+          modalAuth.classList.add("active");
+          tabRegBtn.click();
+        }
+      });
+    }
+
+    // Logout
+    const btnLogout = document.getElementById("btn-action-logout");
+    if (btnLogout) {
+      btnLogout.addEventListener("click", async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        dropdown.classList.remove("active");
+        showToast("Đã đăng xuất tài khoản", "info");
+        loadCurrentUser();
+      });
+    }
+
+    // Login Form Submit
+    if (formLogin) {
+      formLogin.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = document.getElementById("login-username").value.trim();
+        const password = document.getElementById("login-password").value.trim();
+
+        try {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+          const data = await res.json();
+          if (data.success) {
+            currentUser = data.user;
+            updateUserUI();
+            loadQuickUsers();
+            modalAuth.classList.remove("active");
+            showToast(`Chào mừng ${currentUser.full_name} đã đăng nhập!`, "success");
+            formLogin.reset();
+          } else {
+            showToast(data.error || "Đăng nhập thất bại", "error");
+          }
+        } catch (err) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        }
+      });
+    }
+
+    // Register Form Submit
+    if (formReg) {
+      formReg.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = document.getElementById("reg-username").value.trim();
+        const password = document.getElementById("reg-password").value.trim();
+        const full_name = document.getElementById("reg-fullname").value.trim();
+        const department = document.getElementById("reg-department").value;
+        const role = document.getElementById("reg-role").value;
+
+        try {
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, full_name, department, role })
+          });
+          const data = await res.json();
+          if (data.success) {
+            currentUser = data.user;
+            updateUserUI();
+            loadQuickUsers();
+            modalAuth.classList.remove("active");
+            showToast(`Tài khoản "${username}" đã được tạo thành công!`, "success");
+            formReg.reset();
+          } else {
+            showToast(data.error || "Lỗi tạo tài khoản", "error");
+          }
+        } catch (err) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        }
+      });
+    }
+  }
+
+  // ==========================================================
+  // COMMENTS & COLLABORATION LOGIC
+  // ==========================================================
+  function initComments() {
+    // Collapsible toggle for Matrix Discussion
+    const toggleHeader = document.getElementById("matrix-discussion-toggle");
+    const toggleIcon = document.getElementById("matrix-discussion-toggle-icon");
+    const content = document.getElementById("matrix-discussion-content");
+
+    if (toggleHeader && content) {
+      toggleHeader.addEventListener("click", () => {
+        const isHidden = content.style.display === "none";
+        content.style.display = isHidden ? "block" : "none";
+        if (toggleIcon) {
+          toggleIcon.innerHTML = isHidden ? '<i class="fa-solid fa-chevron-up"></i>' : '<i class="fa-solid fa-chevron-down"></i>';
+        }
+      });
+    }
+
+    // Submit matrix comment
+    const btnSubmitMatrix = document.getElementById("btn-submit-matrix-comment");
+    if (btnSubmitMatrix) {
+      btnSubmitMatrix.addEventListener("click", submitMatrixComment);
+    }
+  }
+
+  async function loadReportComments(reportCode) {
+    if (!reportCode) return;
+    const container = document.getElementById("matrix-comments-list");
+    const countBadge = document.getElementById("matrix-comment-count-badge");
+    const title = document.getElementById("matrix-discussion-title");
+
+    if (title) title.textContent = `Trao đổi & Góp ý Nghiệp vụ Mẫu Biểu [${reportCode}]`;
+
+    try {
+      const res = await fetch(`/api/comments?target_type=REPORT&target_id=${reportCode}`);
+      const comments = await res.json();
+
+      if (countBadge) countBadge.textContent = `${comments.length} trao đổi`;
+
+      if (!container) return;
+      container.innerHTML = "";
+
+      if (comments.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted" style="font-size:12px;">Chưa có trao đổi nào cho mẫu biểu này. Hãy là người đầu tiên đóng góp ý kiến nghiệp vụ!</div>';
+        return;
+      }
+
+      comments.forEach(c => {
+        const card = createCommentCard(c, () => loadReportComments(reportCode));
+        container.appendChild(card);
+      });
+    } catch (e) {
+      console.error("Error loading comments:", e);
+    }
+  }
+
+  function createCommentCard(c, onDeleted) {
+    const card = document.createElement("div");
+    card.className = "comment-card";
+
+    let tagBadge = "";
+    if (c.tag === "CAN_LAM_RO") tagBadge = '<span class="badge-tag-can-lam-ro">❓ Cần làm rõ logic</span>';
+    else if (c.tag === "DONG_Y") tagBadge = '<span class="badge-tag-dong-y">✅ Đã thống nhất</span>';
+    else if (c.tag === "KY_THUAT") tagBadge = '<span class="badge-tag-ky-thuat">💻 Ghi chú Kỹ thuật / SQL</span>';
+    else tagBadge = '<span class="badge-tag-thao-luan">💬 Thảo luận nghiệp vụ</span>';
+
+    const initials = getInitials(c.full_name || c.username);
+    const timeStr = formatRelativeTime(c.created_at);
+    const canDelete = currentUser.username === c.username || currentUser.role.includes("Quản trị");
+
+    card.innerHTML = `
+      <div class="comment-avatar" style="background-color: ${c.avatar_color || '#1e3a8a'}">${initials}</div>
+      <div class="comment-content-wrap">
+        <div class="comment-header">
+          <div>
+            <span class="comment-author-name">${escapeHtml(c.full_name || c.username)}</span>
+            <span class="comment-author-dept">(${escapeHtml(c.department || 'Nghiệp vụ')})</span>
+          </div>
+          <span class="comment-time">${escapeHtml(timeStr)}</span>
+        </div>
+        <div class="comment-text">${escapeHtml(c.content)}</div>
+        <div class="comment-footer">
+          <div>${tagBadge}</div>
+          ${canDelete ? `<button class="comment-delete-btn" title="Xóa bình luận này"><i class="fa-solid fa-trash-can"></i> Xóa</button>` : ''}
+        </div>
+      </div>
+    `;
+
+    if (canDelete) {
+      card.querySelector(".comment-delete-btn").addEventListener("click", async () => {
+        if (!confirm("Bạn có chắc chắn muốn xóa bình luận này không?")) return;
+        try {
+          const res = await fetch(`/api/comments/${c.id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (data.success) {
+            showToast("Đã xóa bình luận", "info");
+            if (onDeleted) onDeleted();
+          }
+        } catch (err) {
+          showToast("Lỗi xóa bình luận", "error");
+        }
+      });
+    }
+
+    return card;
+  }
+
+  async function submitMatrixComment() {
+    const textarea = document.getElementById("matrix-comment-textarea");
+    const tagSelect = document.getElementById("matrix-comment-tag-select");
+    const btn = document.getElementById("btn-submit-matrix-comment");
+
+    if (!textarea || !textarea.value.trim()) {
+      showToast("Vui lòng nhập nội dung trao đổi", "error");
+      return;
+    }
+
+    const content = textarea.value.trim();
+    const tag = tagSelect ? tagSelect.value : "THAO_LUAN";
+    const reportCode = currentMatrixReport || "A02211";
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang gửi...</span>';
+
+    try {
+      const res = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_type: "REPORT",
+          target_id: reportCode,
+          report_code: reportCode,
+          content: content,
+          tag: tag,
+          username: currentUser.username
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        textarea.value = "";
+        showToast("Đã gửi ý kiến trao đổi nghiệp vụ thành công!", "success");
+        loadReportComments(reportCode);
+      } else {
+        showToast("Lỗi gửi bình luận: " + (data.error || "Unknown"), "error");
+      }
+    } catch (e) {
+      showToast("Lỗi kết nối máy chủ", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Gửi ý kiến</span>';
     }
   }
 
@@ -1267,6 +1777,22 @@ insert into CIC_KU
         <div class="detail-label-txt">Ghi chú điều kiện:</div>
         <div class="detail-val-txt">${escapeHtml(f.notes || '-')}</div>
       </div>
+
+      <div class="field-discussion-box mt-3 pt-3 border-top">
+        <div class="flex-between mb-2">
+          <strong style="font-size:13px;"><i class="fa-solid fa-comments text-indigo"></i> Trao đổi &amp; Thảo luận về chỉ tiêu này:</strong>
+          <span class="badge-count" id="detail-field-comment-count">0</span>
+        </div>
+        <div class="comments-list" id="detail-field-comments-list" style="max-height:140px; overflow-y:auto; gap:6px;">
+          <div class="text-center py-2 text-muted" style="font-size:11px;">Đang tải trao đổi...</div>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+          <input type="text" id="detail-field-comment-input" class="input-clean flex-grow-1" placeholder="Nhập ý kiến hoặc lưu ý cho chỉ tiêu [${escapeHtml(f.field_code)}]..." style="font-size:12px;">
+          <button id="btn-submit-detail-field-comment" class="btn btn-primary-gradient" style="padding:6px 12px; font-size:12px;">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
     `;
 
     document.getElementById("btn-trigger-edit-from-view").onclick = () => {
@@ -1275,6 +1801,74 @@ insert into CIC_KU
     };
 
     modal.classList.add("active");
+    loadDetailFieldComments(f);
+  }
+
+  async function loadDetailFieldComments(f) {
+    const list = document.getElementById("detail-field-comments-list");
+    const countTag = document.getElementById("detail-field-comment-count");
+    if (!list) return;
+
+    try {
+      const res = await fetch(`/api/comments?target_type=FIELD&target_id=${f.field_code}&report_code=${f.report_code}`);
+      const comments = await res.json();
+      if (countTag) countTag.textContent = comments.length;
+      list.innerHTML = "";
+
+      if (comments.length === 0) {
+        list.innerHTML = '<div class="text-center py-2 text-muted" style="font-size:11px;">Chưa có trao đổi nào cho chỉ tiêu này.</div>';
+      } else {
+        comments.forEach(cm => {
+          const item = document.createElement("div");
+          item.className = "comment-card";
+          item.style.padding = "6px 10px";
+          item.innerHTML = `
+            <div class="comment-avatar" style="width:24px; height:24px; font-size:10px; background-color:${cm.avatar_color || '#1e3a8a'}">${getInitials(cm.full_name)}</div>
+            <div class="comment-content-wrap">
+              <div class="comment-header" style="margin-bottom:2px;">
+                <span class="comment-author-name" style="font-size:11px;">${escapeHtml(cm.full_name)}</span>
+                <span class="comment-time" style="font-size:10px;">${escapeHtml(formatRelativeTime(cm.created_at))}</span>
+              </div>
+              <div class="comment-text" style="font-size:11px; margin:2px 0;">${escapeHtml(cm.content)}</div>
+            </div>
+          `;
+          list.appendChild(item);
+        });
+      }
+
+      const btnSubmit = document.getElementById("btn-submit-detail-field-comment");
+      const input = document.getElementById("detail-field-comment-input");
+      if (btnSubmit && input) {
+        btnSubmit.onclick = async () => {
+          if (!input.value.trim()) return;
+          try {
+            const postRes = await fetch("/api/comments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                target_type: "FIELD",
+                target_id: f.field_code,
+                report_code: f.report_code,
+                field_code: f.field_code,
+                content: input.value.trim(),
+                tag: "THAO_LUAN",
+                username: currentUser.username
+              })
+            });
+            const postData = await postRes.json();
+            if (postData.success) {
+              input.value = "";
+              loadDetailFieldComments(f);
+              showToast("Đã lưu trao đổi về chỉ tiêu!", "success");
+            }
+          } catch (e) {
+            showToast("Lỗi gửi bình luận", "error");
+          }
+        };
+      }
+    } catch (e) {
+      list.innerHTML = '<div class="text-center py-2 text-rose" style="font-size:11px;">Lỗi tải trao đổi</div>';
+    }
   }
 
   function openEditModal(f) {
