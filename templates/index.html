@@ -30,6 +30,10 @@
           <i class="fa-solid fa-chart-line"></i>
           <span>Dashboard Tổng quan</span>
         </button>
+        <button class="nav-link" data-tab="tab-matrix">
+          <i class="fa-solid fa-table-cells text-emerald"></i>
+          <span>Khung Mẫu Biểu & Ma Trận</span>
+        </button>
         <button class="nav-link" data-tab="tab-explorer">
           <i class="fa-solid fa-book-bookmark"></i>
           <span>Tra cứu & Quản lý Mapping</span>
@@ -623,6 +627,132 @@
       <div class="modal-footer">
         <button class="btn btn-outline-clean btn-close-modal">Hủy</button>
         <button id="btn-save-field" class="btn btn-primary-gradient">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Lưu thông tin</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Modal Edit Matrix Cell -->
+  <div id="modal-matrix-cell-edit" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 id="modal-matrix-title">Cấu hình Chỉ tiêu Ma trận</h3>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-matrix-cell" onsubmit="return false;">
+          <input type="hidden" id="matrix-form-id">
+          
+          <div class="form-row-3 mb-3">
+            <div class="form-group-clean">
+              <label>Mã dòng (Row ID):</label>
+              <input type="text" id="matrix-form-row-id" class="input-clean w-100 font-mono" readonly>
+            </div>
+            <div class="form-group-clean">
+              <label>Mã cột (Col ID):</label>
+              <input type="text" id="matrix-form-col-id" class="input-clean w-100 font-mono" readonly>
+            </div>
+            <div class="form-group-clean">
+              <label>Cột đích (Target Col):</label>
+              <input type="text" id="matrix-form-target-col" class="input-clean w-100 font-mono" readonly>
+            </div>
+          </div>
+
+          <div class="form-group-clean mb-3">
+            <label>Tên chỉ tiêu dòng / Mô tả:</label>
+            <input type="text" id="matrix-form-name" class="input-clean w-100 font-bold">
+          </div>
+
+          <div class="highlight-form-box">
+            <div class="box-title"><i class="fa-solid fa-calculator"></i> Lựa chọn Phương pháp Tính toán</div>
+            <div class="form-group-clean mb-3">
+              <label>Phương pháp tính:</label>
+              <select id="matrix-form-calc-method" class="select-clean w-100 font-bold">
+                <option value="GL_CONFIG">GL_CONFIG - Cấu hình theo Số dư Tài khoản GL</option>
+                <option value="CORE_TABLE">CORE_TABLE - Truy vấn trực tiếp từ Bảng Core Banking / ODS</option>
+                <option value="FORMULA">FORMULA - Công thức đại số / Phép tính ngang dọc</option>
+                <option value="PROCEDURE">PROCEDURE - Xử lý trong Thủ tục / Package PL/SQL</option>
+              </select>
+            </div>
+
+            <!-- Block 1: GL Config -->
+            <div id="block-calc-gl" class="calc-block">
+              <div class="form-row-2 mb-2">
+                <div class="form-group-clean">
+                  <label>Số hiệu Tài khoản (GL Account):</label>
+                  <input type="text" id="matrix-form-gl-acct" class="input-clean w-100 font-mono" placeholder="Ví dụ: 1011, 104%, 60, 611...">
+                </div>
+                <div class="form-group-clean">
+                  <label>Loại số dư (Balance Type):</label>
+                  <select id="matrix-form-balance-type" class="select-clean w-100">
+                    <option value="DNDK">DNDK - Dư nợ đầu kỳ (NO_DAU_KY)</option>
+                    <option value="DCDK">DCDK - Dư có đầu kỳ (CO_DAU_KY)</option>
+                    <option value="PSN">PSN - Phát sinh nợ (NO_PHAT_SINH)</option>
+                    <option value="PSC">PSC - Phát sinh có (CO_PHAT_SINH)</option>
+                    <option value="DNCK">DNCK - Dư nợ cuối kỳ (NO_CUOI_KY)</option>
+                    <option value="DCCK">DCCK - Dư có cuối kỳ (CO_CUOI_KY)</option>
+                    <option value="NET_BAL">NET_BAL - Chênh lệch Dư Nợ - Dư Có</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group-clean">
+                  <label>Bảng nguồn GL:</label>
+                  <input type="text" id="matrix-form-gl-table" class="input-clean w-100 font-mono" value="t1080_tb_gl_bal_quy_doi">
+                </div>
+                <div class="form-group-clean">
+                  <label>Cột nguồn:</label>
+                  <input type="text" id="matrix-form-gl-col" class="input-clean w-100 font-mono" placeholder="Ví dụ: NO_DAU_KY, NO_CUOI_KY...">
+                </div>
+              </div>
+            </div>
+
+            <!-- Block 2: Core Table -->
+            <div id="block-calc-core" class="calc-block" style="display: none;">
+              <div class="form-row-2 mb-2">
+                <div class="form-group-clean">
+                  <label>Bảng nguồn Core / ODS:</label>
+                  <input type="text" id="matrix-form-core-table" class="input-clean w-100 font-mono" placeholder="Ví dụ: ODS_OD_ACCOUNT...">
+                </div>
+                <div class="form-group-clean">
+                  <label>Cột nguồn (Source Column):</label>
+                  <input type="text" id="matrix-form-core-col" class="input-clean w-100 font-mono" placeholder="Ví dụ: outstanding_balance...">
+                </div>
+              </div>
+              <div class="form-group-clean">
+                <label>Điều kiện lọc (WHERE clause):</label>
+                <input type="text" id="matrix-form-core-where" class="input-clean w-100 font-mono" placeholder="Ví dụ: status = 'A' AND currency = 'VND'...">
+              </div>
+            </div>
+
+            <!-- Block 3: Formula -->
+            <div id="block-calc-formula" class="calc-block" style="display: none;">
+              <div class="form-group-clean">
+                <label>Biểu thức tính toán (Formula Expression):</label>
+                <textarea id="matrix-form-formula" class="textarea-clean w-100 font-mono" rows="2" placeholder="Ví dụ: (7) = (3) + (5) hoặc VỐN CẤP 1 (A) = A1 - A2..."></textarea>
+              </div>
+            </div>
+
+            <!-- Block 4: Procedure -->
+            <div id="block-calc-proc" class="calc-block" style="display: none;">
+              <div class="form-group-clean">
+                <label>Thủ tục / Procedure xử lý:</label>
+                <input type="text" id="matrix-form-proc-name" class="input-clean w-100 font-mono" placeholder="Ví dụ: pr_A02211, pr_G04224...">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group-clean">
+            <label>Ghi chú nghiệp vụ:</label>
+            <input type="text" id="matrix-form-notes" class="input-clean w-100" placeholder="Lưu ý hoặc điều kiện đặc biệt...">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-clean btn-close-modal">Hủy</button>
+        <button id="btn-save-matrix-cell" class="btn btn-primary-gradient">
           <i class="fa-solid fa-floppy-disk"></i>
           <span>Lưu thông tin</span>
         </button>

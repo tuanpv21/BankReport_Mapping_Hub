@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initNav();
   initGlobalSearch();
   initExplorer();
+  initMatrix();
   initStudio();
   initLineage();
   initExportImport();
@@ -40,6 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tabId === "tab-dashboard") loadStats();
     if (tabId === "tab-explorer" && !activeReport && allReports.length > 0) {
       selectReport(allReports[0]);
+    }
+    if (tabId === "tab-matrix") {
+      loadMatrixReportsDropdown();
     }
     if (tabId === "tab-studio") {
       populateStudioDropdown();

@@ -18,6 +18,7 @@ import openpyxl
 import ingest_parser as parser
 import procedure_parser
 import exporter
+import maubieu_parser
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -37,10 +38,32 @@ def get_db():
 def init_schema():
     conn = get_db()
     cur = conn.cursor()
-    cols = [r[1] for r in cur.execute("PRAGMA table_info(reports)").fetchall()]
-    if "procedure_code" not in cols:
-        cur.execute("ALTER TABLE reports ADD COLUMN procedure_code TEXT")
-        conn.commit()
+    # Reports columns
+    r_cols = [r[1] for r in cur.execute("PRAGMA table_info(reports)").fetchall()]
+    for col, col_t in [
+        ("procedure_code", "TEXT"),
+        ("template_file", "VARCHAR(200)"),
+        ("cycle", "VARCHAR(50)"),
+        ("unit", "VARCHAR(100)"),
+        ("has_matrix", "INTEGER DEFAULT 0")
+    ]:
+        if col not in r_cols:
+            cur.execute(f"ALTER TABLE reports ADD COLUMN {col} {col_t}")
+
+    # Mappings columns
+    m_cols = [r[1] for r in cur.execute("PRAGMA table_info(mappings)").fetchall()]
+    for col, col_t in [
+        ("calc_method", "VARCHAR(30)"),
+        ("row_id", "VARCHAR(50)"),
+        ("col_id", "VARCHAR(50)"),
+        ("gl_account", "VARCHAR(100)"),
+        ("balance_type", "VARCHAR(50)"),
+        ("formula_expr", "TEXT")
+    ]:
+        if col not in m_cols:
+            cur.execute(f"ALTER TABLE mappings ADD COLUMN {col} {col_t}")
+
+    conn.commit()
     conn.close()
 
 init_schema()
@@ -118,7 +141,9 @@ def get_mappings():
         SELECT m.id, m.system_code, m.report_code, r.report_name, m.field_code, 
                m.field_name_vi, m.data_type, m.target_table, m.target_column,
                m.source_system, m.source_table, m.source_column, m.transformation_rule,
-               m.lookup_ref, m.implemented_by, m.regulatory_ref, m.status, m.notes, m.updated_at
+               m.lookup_ref, m.implemented_by, m.regulatory_ref, m.status, m.notes,
+               m.calc_method, m.row_id, m.col_id, m.gl_account, m.balance_type, m.formula_expr,
+               m.updated_at
         FROM mappings m
         LEFT JOIN reports r ON m.report_code = r.report_code AND m.system_code = r.system_code
         WHERE 1=1
@@ -139,11 +164,12 @@ def get_mappings():
             m.field_code LIKE ? OR m.field_name_vi LIKE ? OR 
             m.source_table LIKE ? OR m.source_column LIKE ? OR
             m.transformation_rule LIKE ? OR m.target_table LIKE ? OR
-            m.notes LIKE ?
+            m.gl_account LIKE ? OR m.row_id LIKE ? OR m.notes LIKE ?
         )"""
-        params.extend([s_pat, s_pat, s_pat, s_pat, s_pat, s_pat, s_pat])
+        params.extend([s_pat, s_pat, s_pat, s_pat, s_pat, s_pat, s_pat, s_pat, s_pat])
         
-    sql += " ORDER BY m.system_code, m.report_code, m.id LIMIT 400"
+    limit = int(request.args.get("limit", 2000 if report else 500))
+    sql += f" ORDER BY m.system_code, m.report_code, m.id LIMIT {limit}"
     rows = cur.execute(sql, params).fetchall()
     conn.close()
     
@@ -161,7 +187,7 @@ def get_mapping_detail(id):
 
 @app.route("/api/mappings", methods=["POST"])
 def create_mapping():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     cur = conn.cursor()
     
@@ -196,7 +222,7 @@ def create_mapping():
 
 @app.route("/api/mappings/<int:id>", methods=["PUT"])
 def update_mapping(id):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     conn = get_db()
     cur = conn.cursor()
     
@@ -214,26 +240,124 @@ def update_mapping(id):
         regulatory_ref = ?,
         status = ?,
         notes = ?,
+        calc_method = ?,
+        row_id = ?,
+        col_id = ?,
+        gl_account = ?,
+        balance_type = ?,
+        formula_expr = ?,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
     """, (
         data.get("field_name_vi"),
         data.get("data_type"),
         data.get("target_table"),
-        data.get("source_system"),
+        data.get("source_system", "ODS"),
         data.get("source_table"),
         data.get("source_column"),
         data.get("transformation_rule"),
         data.get("lookup_ref"),
         data.get("implemented_by"),
         data.get("regulatory_ref"),
-        data.get("status"),
+        data.get("status", "Active"),
         data.get("notes"),
+        data.get("calc_method", "GL_CONFIG"),
+        data.get("row_id"),
+        data.get("col_id"),
+        data.get("gl_account"),
+        data.get("balance_type"),
+        data.get("formula_expr"),
         id
     ))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
+
+# ==========================================================
+# MAUBIEU CONFIG & MATRIX TEMPLATE APIS
+# ==========================================================
+
+@app.route("/api/maubieu/sync", methods=["POST"])
+def sync_maubieu():
+    res = maubieu_parser.import_all_maubieu_templates()
+    return jsonify(res)
+
+@app.route("/api/template/matrix/download")
+def download_matrix_template():
+    report_code = request.args.get("report", "A02211")
+    file_path = exporter.export_matrix_template(report_code)
+    return send_file(file_path, as_attachment=True, download_name=f"Template_Mapping_{report_code}.xlsx")
+
+@app.route("/api/template/matrix/upload", methods=["POST"])
+def upload_matrix_template():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    f = request.files["file"]
+    if f.filename == "":
+        return jsonify({"error": "Filename is empty"}), 400
+    save_path = os.path.join(UPLOAD_FOLDER, secure_filename(f.filename))
+    f.save(save_path)
+    res = exporter.import_matrix_template(save_path)
+    return jsonify(res)
+
+@app.route("/api/reports/<report_code>/matrix")
+def get_report_matrix(report_code):
+    conn = get_db()
+    cur = conn.cursor()
+    rpt = cur.execute("SELECT * FROM reports WHERE report_code = ?", (report_code,)).fetchone()
+    if not rpt:
+        conn.close()
+        return jsonify({"error": "Not found"}), 404
+        
+    calc_filter = request.args.get("calc_method")
+    sql = "SELECT * FROM mappings WHERE report_code = ?"
+    params = [report_code]
+    if calc_filter and calc_filter != "ALL":
+        sql += " AND calc_method = ?"
+        params.append(calc_filter)
+    sql += " ORDER BY id LIMIT 2000"
+    
+    rows = cur.execute(sql, params).fetchall()
+    conn.close()
+    
+    return jsonify({
+        "report": dict(rpt),
+        "total_cells": len(rows),
+        "cells": [dict(r) for r in rows]
+    })
+
+@app.route("/api/reports/<report_code>/script")
+def get_report_generated_script(report_code):
+    conn = get_db()
+    cur = conn.cursor()
+    rpt = cur.execute("SELECT * FROM reports WHERE report_code = ?", (report_code,)).fetchone()
+    if not rpt:
+        conn.close()
+        return jsonify({"error": "Not found"}), 404
+        
+    rpt_dict = dict(rpt)
+    # Check if there is stored procedure_code
+    proc_code = rpt_dict.get("procedure_code", "")
+    
+    # Generate sample SQL script from mappings if needed
+    rows = cur.execute("SELECT * FROM mappings WHERE report_code = ? AND (gl_account != '' OR formula_expr != '') LIMIT 50", (report_code,)).fetchall()
+    conn.close()
+    
+    sample_rules = []
+    for r in rows:
+        r_dict = dict(r)
+        if r_dict.get("calc_method") == "GL_CONFIG" and r_dict.get("gl_account"):
+            sample_rules.append(f"-- Chỉ tiêu {r_dict.get('field_name_vi')}\nMERGE INTO {rpt_dict.get('target_table')} a\n  USING (SELECT SUM(NO_CUOI_KY) val FROM t1080_tb_gl_bal_quy_doi WHERE gl_code LIKE '{r_dict.get('gl_account')}%') b\n  ON (a.id = '{r_dict.get('row_id')}')\n  WHEN MATCHED THEN UPDATE SET a.{r_dict.get('target_column')} = b.val;\n")
+        elif r_dict.get("calc_method") == "FORMULA" and r_dict.get("formula_expr"):
+            sample_rules.append(f"-- Công thức {r_dict.get('field_name_vi')}\n-- Logic: {r_dict.get('formula_expr')}\nUPDATE {rpt_dict.get('target_table')} SET {r_dict.get('target_column')} = ... WHERE id = '{r_dict.get('row_id')}';\n")
+            
+    generated_sql = "\n".join(sample_rules)
+    return jsonify({
+        "report_code": report_code,
+        "procedure_name": rpt_dict.get("procedure_name", ""),
+        "stored_procedure_code": proc_code,
+        "generated_script": generated_sql
+    })
 
 @app.route("/api/mappings/<int:id>", methods=["DELETE"])
 def delete_mapping(id):
@@ -250,7 +374,7 @@ def delete_mapping(id):
 
 @app.route("/api/procedure/parse", methods=["POST"])
 def parse_procedure():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     sql_text = data.get("sql_text", "")
     target_table = data.get("target_table", "")
     system_code = data.get("system_code", "")
@@ -260,7 +384,7 @@ def parse_procedure():
 
 @app.route("/api/procedure/apply", methods=["POST"])
 def apply_procedure_mappings():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     report_code = data.get("report_code")
     system_code = data.get("system_code", "CIC")
     target_table = data.get("target_table", "")
@@ -345,7 +469,7 @@ def get_report_procedure(report_code):
 
 @app.route("/api/reports/<report_code>/procedure", methods=["POST"])
 def update_report_procedure(report_code):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     system = data.get("system_code", "CIC")
     procedure_name = data.get("procedure_name", "")
     procedure_code = data.get("procedure_code", "")

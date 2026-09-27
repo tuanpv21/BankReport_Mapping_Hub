@@ -239,3 +239,258 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
 
     doc.save(output_path)
     return output_path
+
+def export_matrix_template(report_code, output_path=None):
+    if not output_path:
+        output_path = os.path.join(os.path.dirname(__file__), f"Template_Mapping_{report_code}.xlsx")
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    rpt = cur.execute("SELECT report_code, system_code, report_name, target_table, procedure_name, cycle, unit FROM reports WHERE report_code = ?", (report_code,)).fetchone()
+    if not rpt:
+        conn.close()
+        raise ValueError(f"Report {report_code} not found")
+
+    rpt_code, sys_code, rpt_name, tgt_tbl, proc_name, cycle, unit = rpt
+
+    sql = """
+        SELECT m.id, m.row_id, m.col_id, m.field_code, m.field_name_vi, m.gl_account,
+               m.calc_method, m.source_table, m.source_column, m.transformation_rule,
+               m.formula_expr, m.notes, m.target_table, m.target_column
+        FROM mappings m
+        WHERE m.report_code = ?
+        ORDER BY m.id
+    """
+    rows = cur.execute(sql, (report_code,)).fetchall()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws1 = wb.active
+    ws1.title = "Mapping_Config"
+    ws2 = wb.create_sheet("Huong_Dan_Nghiep_Vu")
+
+    # Styling
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    data_font = Font(name="Calibri", size=10)
+    mono_font = Font(name="Consolas", size=10)
+    thin_border = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="thin", color="D1D5DB")
+    )
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # 1. Sheet 1: Mapping_Config
+    ws1.merge_cells("A1:N1")
+    title_cell = ws1["A1"]
+    title_cell.value = f"TEMPLATE CẤU HÌNH MAPPING CHỈ TIÊU & CÔNG THỨC - [{rpt_code}] {rpt_name}"
+    title_cell.font = Font(name="Calibri", size=13, bold=True, color="1E3A8A")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 28
+
+    ws1.merge_cells("A2:N2")
+    sub_cell = ws1["A2"]
+    sub_cell.value = f"Hệ thống: {sys_code} | Bảng đích: {tgt_tbl} | Chu kỳ: {cycle or 'Định kỳ'} | Đơn vị: {unit or 'VND'} | Thủ tục: {proc_name or '-'}"
+    sub_cell.font = Font(name="Calibri", size=10, italic=True, color="4B5563")
+    sub_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[2].height = 20
+
+    headers = [
+        "STT", "Mã dòng (Row ID)", "Mã cột (Col ID)", "Tên chỉ tiêu (Hàng)",
+        "Tên cột số liệu (Cột)", "Số hiệu TK / GL Code", "Phương pháp tính",
+        "Bảng nguồn Core / ODS", "Cột nguồn / Số dư", "Công thức / Biểu thức tính",
+        "Điều kiện lọc / Ghi chú", "Mã trường (Field Code)", "Cột đích", "Bảng đích"
+    ]
+
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws1.cell(row=3, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center
+        cell.border = thin_border
+    ws1.row_dimensions[3].height = 26
+
+    for idx, r in enumerate(rows, 1):
+        row_num = idx + 3
+        ws1.row_dimensions[row_num].height = 20
+
+        # Extract values
+        m_id, row_id, col_id, f_code, f_name, gl_acc, calc_m, src_tbl, src_col, rule, formula, notes, tgt_t, tgt_c = r
+
+        vals = [
+            idx,
+            row_id or "-",
+            col_id or "-",
+            f_name or f_code,
+            tgt_c or "-",
+            gl_acc or "",
+            calc_m or "GL_CONFIG",
+            src_tbl or "",
+            src_col or "",
+            formula or rule or "",
+            notes or "",
+            f_code,
+            tgt_c or "",
+            tgt_t or ""
+        ]
+
+        for c_idx, val in enumerate(vals, 1):
+            cell = ws1.cell(row=row_num, column=c_idx, value=val)
+            cell.border = thin_border
+            if c_idx in [1, 2, 3, 6, 7, 12, 13, 14]:
+                cell.alignment = align_center
+                cell.font = mono_font if c_idx in [2, 3, 6, 12, 13, 14] else data_font
+            else:
+                cell.alignment = align_left
+                cell.font = data_font
+
+    # Auto column width for ws1
+    for col in ws1.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            if cell.row in [1, 2]: continue
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws1.column_dimensions[col_letter].width = min(max(max_len + 3, 11), 50)
+    ws1.freeze_panes = "A4"
+
+    # 2. Sheet 2: Huong_Dan_Nghiep_Vu
+    ws2.merge_cells("A1:E1")
+    h_title = ws2["A1"]
+    h_title.value = "HƯỚNG DẪN ĐIỀN THÔNG TIN MAPPING VÀ PHƯƠNG PHÁP TÍNH TOÁN"
+    h_title.font = Font(name="Calibri", size=14, bold=True, color="1E3A8A")
+    h_title.alignment = Alignment(horizontal="left", vertical="center")
+    ws2.row_dimensions[1].height = 26
+
+    guide_headers = ["Phương pháp tính", "Khi nào sử dụng?", "Các cột cần điền", "Ví dụ cấu hình mẫu", "Quy cách sinh mã / Procedure"]
+    for c_idx, gh in enumerate(guide_headers, 1):
+        cell = ws2.cell(row=3, column=c_idx, value=gh)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center
+        cell.border = thin_border
+    ws2.row_dimensions[3].height = 24
+
+    guides = [
+        (
+            "GL_CONFIG",
+            "Dùng cho các báo cáo cân đối kế toán, tài chính tính theo số dư tài khoản GL (ví dụ: Tiền mặt 1011, Ngoại tệ 1031, Vốn điều lệ 60, Quỹ 611,...)",
+            "- Số hiệu TK / GL Code\n- Bảng nguồn (mặc định: t1080_tb_gl_bal_quy_doi)\n- Cột nguồn (NO_DAU_KY, CO_DAU_KY, NO_PHAT_SINH, CO_PHAT_SINH, NO_CUOI_KY, CO_CUOI_KY)",
+            "Số hiệu TK: 1011\nBảng nguồn: t1080_tb_gl_bal_quy_doi\nCột nguồn: NO_DAU_KY (cho Dư nợ đầu kỳ)\nCông thức: a.gl_code LIKE '1011%'",
+            "Sinh câu lệnh MERGE INTO theo GL_CODE hoặc nạp vào bảng cấu hình CAL_STEP1"
+        ),
+        (
+            "CORE_TABLE",
+            "Dùng khi dữ liệu chỉ tiêu lấy trực tiếp từ các bảng giao dịch Core Banking/ODS chi tiết (Khách hàng, khế ước, tài sản đảm bảo, CIC,...)",
+            "- Bảng nguồn Core/ODS (ví dụ: ODS_OD_ACCOUNT, ODS_LOAN_ACCOUNT_HIST)\n- Cột nguồn (ví dụ: outstanding_balance, customer_id)\n- Điều kiện lọc / Ghi chú (WHERE clause)",
+            "Bảng nguồn: ODS_OD_ACCOUNT\nCột nguồn: outstanding_balance\nĐiều kiện lọc: status = 'A' AND currency = 'VND'",
+            "Sinh câu lệnh INSERT INTO ... SELECT hoặc câu lệnh query trực tiếp trong Procedure"
+        ),
+        (
+            "FORMULA",
+            "Dùng cho các chỉ tiêu tổng hợp hoặc tính toán đại số giữa các dòng/cột trong báo cáo",
+            "- Công thức / Biểu thức tính toán (phép tính +, -, *, /, SUM, IF,...)",
+            "(7) = (3) + (5)\nVỐN CẤP 1 (A) = A1 - A2\nLợi nhuận = TK69 + Total 7 - Total 8\nIF(TK69 + Total 7 - Total 8 > 0, ...)",
+            "Sinh câu lệnh UPDATE tính toán tổng hợp hoặc subquery theo các dòng đã tính"
+        ),
+        (
+            "PROCEDURE",
+            "Dùng khi logic xử lý quá phức tạp hoặc đã được đóng gói thành các hàm/thủ tục PL/SQL riêng trong Package",
+            "- Tên hàm hoặc Procedure xử lý (ví dụ: pr_A02211, pr_G04224, pk_cic_calc.fn_CIC_KU)\n- Ghi chú logic chi tiết",
+            "Thủ tục: pr_A02211(p_date, v_cur)\nLogic: Chạy vòng lặp for cursor merge dữ liệu từ bảng quy đổi",
+            "Được ghi nhận để liên kết vào file script .prc / .pck tương ứng"
+        )
+    ]
+
+    for g_idx, g_row in enumerate(guides, 1):
+        r_num = g_idx + 3
+        ws2.row_dimensions[r_num].height = 65
+        for col_i, val in enumerate(g_row, 1):
+            cell = ws2.cell(row=r_num, column=col_i, value=val)
+            cell.border = thin_border
+            cell.alignment = align_left
+            cell.font = data_font
+            if col_i == 1:
+                cell.font = Font(name="Consolas", size=11, bold=True, color="1E3A8A")
+                cell.alignment = align_center
+
+    ws2.column_dimensions["A"].width = 18
+    ws2.column_dimensions["B"].width = 38
+    ws2.column_dimensions["C"].width = 35
+    ws2.column_dimensions["D"].width = 40
+    ws2.column_dimensions["E"].width = 35
+
+    wb.save(output_path)
+    return output_path
+
+
+def import_matrix_template(file_path):
+    """Reads uploaded filled template Excel and updates mapping_hub.db."""
+    if not os.path.exists(file_path):
+        return {"success": False, "error": "File không tồn tại"}
+
+    wb = openpyxl.load_workbook(file_path, data_only=True)
+    ws = wb["Mapping_Config"] if "Mapping_Config" in wb.sheetnames else wb.active
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    updated = 0
+    # Headers are at row 3, data from row 4
+    for r in range(4, ws.max_row + 1):
+        row_id = str(ws.cell(row=r, column=2).value or "").strip()
+        col_id = str(ws.cell(row=r, column=3).value or "").strip()
+        f_name = str(ws.cell(row=r, column=4).value or "").strip()
+        gl_acc = str(ws.cell(row=r, column=6).value or "").strip()
+        calc_m = str(ws.cell(row=r, column=7).value or "GL_CONFIG").strip().upper()
+        src_tbl = str(ws.cell(row=r, column=8).value or "").strip()
+        src_col = str(ws.cell(row=r, column=9).value or "").strip()
+        formula = str(ws.cell(row=r, column=10).value or "").strip()
+        notes = str(ws.cell(row=r, column=11).value or "").strip()
+        f_code = str(ws.cell(row=r, column=12).value or "").strip()
+
+        if not f_code and not (row_id and col_id):
+            continue
+
+        # Update matching mapping
+        if f_code:
+            cur.execute("""
+                UPDATE mappings SET
+                    gl_account = coalesce(nullif(?, ''), gl_account),
+                    calc_method = coalesce(nullif(?, ''), calc_method),
+                    source_table = coalesce(nullif(?, ''), source_table),
+                    source_column = coalesce(nullif(?, ''), source_column),
+                    transformation_rule = coalesce(nullif(?, ''), transformation_rule),
+                    formula_expr = coalesce(nullif(?, ''), formula_expr),
+                    notes = coalesce(nullif(?, ''), notes),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE field_code = ?
+            """, (gl_acc, calc_m, src_tbl, src_col, formula, formula, notes, f_code))
+            if cur.rowcount > 0:
+                updated += 1
+        elif row_id and col_id:
+            cur.execute("""
+                UPDATE mappings SET
+                    gl_account = coalesce(nullif(?, ''), gl_account),
+                    calc_method = coalesce(nullif(?, ''), calc_method),
+                    source_table = coalesce(nullif(?, ''), source_table),
+                    source_column = coalesce(nullif(?, ''), source_column),
+                    transformation_rule = coalesce(nullif(?, ''), transformation_rule),
+                    formula_expr = coalesce(nullif(?, ''), formula_expr),
+                    notes = coalesce(nullif(?, ''), notes),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE row_id = ? AND col_id = ?
+            """, (gl_acc, calc_m, src_tbl, src_col, formula, formula, notes, row_id, col_id))
+            if cur.rowcount > 0:
+                updated += 1
+
+    conn.commit()
+    conn.close()
+
+    return {"success": True, "updated_count": updated}
