@@ -48,6 +48,7 @@ def ensure_data_seeded():
         matrix_cnt = 0
         if "has_matrix" in has_matrix_cols:
             matrix_cnt = cur.execute("SELECT COUNT(*) FROM reports WHERE has_matrix = 1").fetchone()[0]
+        conn.close()
 
         if cnt == 0:
             print("[Startup] Initializing base report mappings...")
@@ -69,7 +70,6 @@ def ensure_data_seeded():
                 INSERT INTO users (username, password_hash, full_name, department, role, avatar_color)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, demo_users)
-            conn.commit()
             print("[Startup] Seeded demo users")
 
         # Seed sample comments
@@ -85,10 +85,8 @@ def ensure_data_seeded():
                 INSERT INTO comments (user_id, username, full_name, department, avatar_color, target_type, target_id, report_code, field_code, content, tag)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, sample_comments)
-            conn.commit()
             print("[Startup] Seeded sample comments")
 
-        conn.close()
     except Exception as e:
         print(f"[Startup Warning] Seeding check: {e}")
 
@@ -119,6 +117,7 @@ def get_stats():
     tt35_mappings = cur.execute("SELECT COUNT(*) FROM mappings WHERE system_code = 'TT35'").fetchone()[0]
     
     conn.close()
+    db_info = database.get_db_status()
     return jsonify({
         "total_reports": total_reports,
         "total_mappings": total_mappings,
@@ -126,7 +125,16 @@ def get_stats():
         "unmapped_source": unmapped_source,
         "mapped_ratio": round((mapped_source / total_mappings * 100), 1) if total_mappings else 0,
         "cic": {"reports": cic_reports, "mappings": cic_mappings},
-        "tt35": {"reports": tt35_reports, "mappings": tt35_mappings}
+        "tt35": {"reports": tt35_reports, "mappings": tt35_mappings},
+        "database": db_info
+    })
+
+@app.route("/api/health")
+def health_check():
+    db_info = database.get_db_status()
+    return jsonify({
+        "status": "healthy",
+        "database": db_info
     })
 
 @app.route("/api/reports")
