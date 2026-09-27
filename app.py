@@ -358,4 +358,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--open":
         threading.Timer(1.5, open_browser).start()
         
-    port = int(os.environ.get("PORT", 5050))`r`n    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get('PORT', 5050))
+    app.run(host='0.0.0.0', port=port, debug=False)
