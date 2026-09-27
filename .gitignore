@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+uploads/*
+!uploads/.gitkeep
+test_write.txt
+*.xlsx
+*.docx
+!static/

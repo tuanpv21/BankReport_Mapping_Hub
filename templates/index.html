@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BankReport Mapping Hub - TT35 & CIC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="brand-info">
+          <h2>Mapping Hub</h2>
+          <p>TT35 & CIC Regulatory</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-label">PHÂN HỆ CHÍNH</div>
+        <button class="nav-link active" data-tab="tab-dashboard">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Dashboard Tổng quan</span>
+        </button>
+        <button class="nav-link" data-tab="tab-explorer">
+          <i class="fa-solid fa-book-bookmark"></i>
+          <span>Tra cứu & Quản lý Mapping</span>
+        </button>
+        <button class="nav-link" data-tab="tab-lineage">
+          <i class="fa-solid fa-route"></i>
+          <span>Phân tích Tác động (Lineage)</span>
+        </button>
+        <button class="nav-link" data-tab="tab-export">
+          <i class="fa-solid fa-file-export"></i>
+          <span>Xuất / Nhập Tài liệu</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="system-stats-pill">
+          <div class="pill-dot"></div>
+          <span>Đang hoạt động: <strong>492 chỉ tiêu</strong></span>
+        </div>
+        <button id="btn-sync-all" class="btn btn-sync-sidebar" title="Quét lại mã nguồn">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Đồng bộ từ Mã nguồn</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Container -->
+    <div class="main-wrapper">
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-search">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="global-search-input" placeholder="Tìm kiếm nhanh chỉ tiêu, mã cột, bảng ODS/Core, công thức tính... (Nhấn Enter)">
+          <span class="search-kbd">Enter</span>
+        </div>
+
+        <div class="topbar-right">
+          <button id="btn-open-create" class="btn btn-primary-gradient">
+            <i class="fa-solid fa-plus"></i>
+            <span>Thêm chỉ tiêu mới</span>
+          </button>
+          <div class="divider-v"></div>
+          <button id="btn-header-export-excel" class="btn btn-action" title="Tải nhanh toàn bộ file Excel">
+            <i class="fa-solid fa-file-excel text-emerald"></i>
+            <span>Excel</span>
+          </button>
+          <button id="btn-header-export-word" class="btn btn-action" title="Tải nhanh tài liệu Word đặc tả">
+            <i class="fa-solid fa-file-word text-blue"></i>
+            <span>Word</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic Content Views -->
+      <main class="page-content">
+
+        <!-- VIEW 1: DASHBOARD -->
+        <section id="tab-dashboard" class="tab-view active">
+          <div class="welcome-banner">
+            <div class="banner-text">
+              <h1>Hệ thống Quản lý Ánh xạ Báo cáo TT35 & CIC</h1>
+              <p>Chuẩn hóa từ điển dữ liệu, ma trận quy đổi nghiệp vụ sang kỹ thuật và truy vết luồng dữ liệu (Data Lineage) tuân thủ quy định NHNN.</p>
+            </div>
+            <div class="banner-tags">
+              <span class="tag-pill tag-cic"><i class="fa-solid fa-shield"></i> QĐ 573/QĐ-NHNN (CIC)</span>
+              <span class="tag-pill tag-tt35"><i class="fa-solid fa-landmark"></i> TT 35/2015/TT-NHNN (SBV)</span>
+            </div>
+          </div>
+
+          <!-- 4 Main KPI Cards -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">MẪU BÁO CÁO</span>
+                <div class="kpi-icon icon-blue"><i class="fa-solid fa-folder-closed"></i></div>
+              </div>
+              <div class="kpi-body">
+                <h3 id="stat-total-reports" class="kpi-number">0</h3>
+                <div class="kpi-progress-bar">
+                  <div class="bar-fill bg-blue" style="width: 100%"></div>
+                </div>
+                <div class="kpi-meta" id="stat-reports-breakdown">CIC: 0 | TT35: 0</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">TỔNG CHỈ TIÊU / CỘT</span>
+                <div class="kpi-icon icon-indigo"><i class="fa-solid fa-list-check"></i></div>
+              </div>
+              <div class="kpi-body">
+                <h3 id="stat-total-mappings" class="kpi-number">0</h3>
+                <div class="kpi-progress-bar">
+                  <div class="bar-fill bg-indigo" style="width: 100%"></div>
+                </div>
+                <div class="kpi-meta" id="stat-mappings-breakdown">CIC: 0 | TT35: 0</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">ĐỘ PHỦ ÁNH XẠ NGUỒN</span>
+                <div class="kpi-icon icon-emerald"><i class="fa-solid fa-circle-check"></i></div>
+              </div>
+              <div class="kpi-body">
+                <h3 id="stat-mapped-ratio" class="kpi-number">0%</h3>
+                <div class="kpi-progress-bar">
+                  <div id="bar-mapped-ratio" class="bar-fill bg-emerald" style="width: 0%"></div>
+                </div>
+                <div class="kpi-meta" id="stat-mapped-count">0 chỉ tiêu đã map nguồn</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <span class="kpi-title">CHỈ TIÊU CẦN BỔ SUNG</span>
+                <div class="kpi-icon icon-amber"><i class="fa-solid fa-triangle-exclamation"></i></div>
+              </div>
+              <div class="kpi-body">
+                <h3 id="stat-unmapped-count" class="kpi-number">0</h3>
+                <div class="kpi-progress-bar">
+                  <div id="bar-unmapped-ratio" class="bar-fill bg-amber" style="width: 0%"></div>
+                </div>
+                <div class="kpi-meta">Cần cập nhật cột nguồn Core/ODS</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Systems Split Columns -->
+          <div class="systems-split-grid">
+            <div class="system-panel">
+              <div class="panel-header">
+                <div class="panel-title-group">
+                  <div class="panel-badge badge-cic">CIC</div>
+                  <div>
+                    <h4>Hệ thống Thông tin Tín dụng Quốc gia</h4>
+                    <span>Căn cứ Quyết định 573/QĐ-NHNN & các công văn nghiệp vụ CIC</span>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="sub-heading">CÁC MẪU BIỂU CHÍNH (Nhấp để tra cứu nhanh):</div>
+                <div class="report-chips-list" id="dash-cic-chips"></div>
+              </div>
+            </div>
+
+            <div class="system-panel">
+              <div class="panel-header">
+                <div class="panel-title-group">
+                  <div class="panel-badge badge-tt35">TT35</div>
+                  <div>
+                    <h4>Báo cáo Thống kê Ngân hàng Nhà nước</h4>
+                    <span>Thông tư 35/2015/TT-NHNN & Thông tư 11/2021/TT-NHNN</span>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="sub-heading">CÁC MẪU BIỂU CHÍNH (Nhấp để tra cứu nhanh):</div>
+                <div class="report-chips-list" id="dash-tt35-chips"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 2: MASTER-DETAIL EXPLORER -->
+        <section id="tab-explorer" class="tab-view">
+          <div class="explorer-layout">
+            <!-- Left Pane: Reports Master List -->
+            <aside class="explorer-master">
+              <div class="master-header">
+                <div class="system-toggle-buttons">
+                  <button class="btn-toggle active" data-sys="ALL">Tất cả</button>
+                  <button class="btn-toggle" data-sys="CIC">CIC</button>
+                  <button class="btn-toggle" data-sys="TT35">TT35</button>
+                </div>
+                <div class="master-search-input">
+                  <i class="fa-solid fa-filter"></i>
+                  <input type="text" id="report-filter-input" placeholder="Lọc mẫu báo cáo...">
+                </div>
+              </div>
+
+              <div class="master-list-container" id="master-reports-list"></div>
+            </aside>
+
+            <!-- Right Pane: Report Fields Detail Table -->
+            <section class="explorer-detail">
+              <div class="detail-report-banner">
+                <div class="banner-left">
+                  <div class="report-code-tag" id="active-report-badge">KU</div>
+                  <div>
+                    <h2 id="active-report-title">CIC_KU - Thông tin Khế ước Hợp đồng Vay</h2>
+                    <p id="active-report-desc">Bảng đích: CIC_KU | Quy định: QĐ 573/QĐ-NHNN</p>
+                  </div>
+                </div>
+                <div class="banner-right">
+                  <button id="btn-export-active-report" class="btn btn-outline-clean">
+                    <i class="fa-solid fa-file-excel text-emerald"></i>
+                    <span>Xuất báo cáo này</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="detail-toolbar">
+                <div class="detail-search-box">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="field-filter-input" placeholder="Lọc theo mã chỉ tiêu, tên tiếng Việt, cột nguồn...">
+                </div>
+                <div class="detail-filters">
+                  <select id="filter-field-status" class="select-clean">
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="Active">Đang áp dụng (Active)</option>
+                    <option value="Draft">Bản thảo (Draft)</option>
+                  </select>
+                  <span class="fields-counter" id="active-fields-count">Hiển thị: 0 chỉ tiêu</span>
+                </div>
+              </div>
+
+              <div class="detail-table-card">
+                <div class="table-scroll-wrap">
+                  <table class="modern-table">
+                    <thead>
+                      <tr>
+                        <th width="140">Mã / Cột Đích</th>
+                        <th width="240">Tên Chỉ tiêu Nghiệp vụ</th>
+                        <th width="110">Kiểu DL</th>
+                        <th width="260">Nguồn Dữ liệu (ODS / Core)</th>
+                        <th>Công thức / Quy tắc tính</th>
+                        <th width="90">Trạng thái</th>
+                        <th width="80" class="text-right">Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody id="fields-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- VIEW 3: LINEAGE & IMPACT ANALYSIS -->
+        <section id="tab-lineage" class="tab-view">
+          <div class="section-title-wrap">
+            <h1>Phân tích Tác động & Luồng Dữ liệu (Impact Lineage)</h1>
+            <p>Tra cứu 2 chiều: Nhập bất kỳ bảng hoặc cột Core/ODS để phát hiện ngay các báo cáo và chỉ tiêu nghiệp vụ bị ảnh hưởng.</p>
+          </div>
+
+          <div class="lineage-hero-card">
+            <label class="lineage-label">Nhập Bảng Nguồn hoặc Cột Nguồn trong ODS / Core Banking:</label>
+            <div class="lineage-input-row">
+              <div class="lineage-input-box">
+                <i class="fa-solid fa-database"></i>
+                <input type="text" id="lineage-search-field" placeholder="Ví dụ: ODS_OD_ACCOUNT, ODS_LOAN_ACCOUNT_HIST, OUTSTANDING, STATUS...">
+              </div>
+              <button id="btn-do-lineage" class="btn btn-primary-gradient btn-lg">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>Phân tích Tác động</span>
+              </button>
+            </div>
+            <div class="lineage-quick-chips">
+              <span>Gợi ý mẫu:</span>
+              <button class="chip-suggest" data-term="ODS_OD_ACCOUNT">ODS_OD_ACCOUNT</button>
+              <button class="chip-suggest" data-term="ODS_LOAN_ACCOUNT_HIST">ODS_LOAN_ACCOUNT_HIST</button>
+              <button class="chip-suggest" data-term="ODS_ACCOUNT_LOAN_UDF">ODS_ACCOUNT_LOAN_UDF</button>
+              <button class="chip-suggest" data-term="ODS_TERM_DEPOSIT">ODS_TERM_DEPOSIT</button>
+              <button class="chip-suggest" data-term="ACCOUNT_NUMBER">ACCOUNT_NUMBER</button>
+              <button class="chip-suggest" data-term="OUTSTANDING">OUTSTANDING</button>
+            </div>
+          </div>
+
+          <div class="lineage-results-wrap" id="lineage-results-container">
+            <div class="card-clean">
+              <div class="card-clean-header">
+                <div>
+                  <h3 id="lineage-results-title">Kết quả Phân tích</h3>
+                  <span class="text-subtle" id="lineage-summary-text">Nhập bảng nguồn hoặc chọn gợi ý để bắt đầu phân tích.</span>
+                </div>
+                <span class="badge-count" id="lineage-count-tag">0 chỉ tiêu</span>
+              </div>
+              <div class="table-scroll-wrap">
+                <table class="modern-table">
+                  <thead>
+                    <tr>
+                      <th width="190">Bảng Nguồn ODS/Core</th>
+                      <th width="150">Cột Nguồn</th>
+                      <th width="80">Hệ thống</th>
+                      <th width="110">Mẫu Báo cáo</th>
+                      <th width="130">Mã / Cột Đích</th>
+                      <th>Tên Chỉ tiêu Nghiệp vụ</th>
+                      <th>Chương trình thực thi (PL/SQL)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lineage-results-body">
+                    <tr>
+                      <td colspan="7" class="text-center py-5 text-muted">Chưa có kết quả phân tích.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 4: IMPORT / EXPORT -->
+        <section id="tab-export" class="tab-view">
+          <div class="section-title-wrap">
+            <h1>Xuất / Nhập Tài liệu Đặc tả (Specification)</h1>
+            <p>Tự động xuất file Excel Ma trận ánh xạ hoặc tài liệu Word Đặc tả kỹ thuật phục vụ kiểm toán, phê duyệt và bàn giao.</p>
+          </div>
+
+          <div class="io-grid">
+            <div class="io-card">
+              <div class="io-header">
+                <div class="io-icon bg-emerald-subtle text-emerald"><i class="fa-solid fa-file-arrow-down"></i></div>
+                <div>
+                  <h3>Xuất Tài liệu Báo cáo (Export)</h3>
+                  <p>Tạo file Excel hoặc Word có định dạng chuẩn mẫu nghiệp vụ ngân hàng.</p>
+                </div>
+              </div>
+              <div class="io-body">
+                <div class="form-group-clean">
+                  <label>1. Chọn Hệ thống:</label>
+                  <select id="export-select-system" class="select-clean w-100">
+                    <option value="ALL">Toàn bộ Hệ thống (TT35 & CIC)</option>
+                    <option value="CIC">Phân hệ CIC (Quyết định 573/QĐ-NHNN)</option>
+                    <option value="TT35">Phân hệ TT35 (Thông tư 35 & TT11)</option>
+                  </select>
+                </div>
+                <div class="form-group-clean">
+                  <label>2. Chọn Mẫu Báo cáo cụ thể (Tùy chọn):</label>
+                  <select id="export-select-report" class="select-clean w-100">
+                    <option value="ALL">-- Tất cả mẫu biểu --</option>
+                  </select>
+                </div>
+                <div class="export-actions-row">
+                  <button id="btn-export-excel-file" class="btn btn-emerald-solid">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Tải file Excel Ma trận (.xlsx)</span>
+                  </button>
+                  <button id="btn-export-word-file" class="btn btn-blue-solid">
+                    <i class="fa-solid fa-file-word"></i>
+                    <span>Tải file Word Đặc tả (.docx)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="io-card">
+              <div class="io-header">
+                <div class="io-icon bg-indigo-subtle text-indigo"><i class="fa-solid fa-file-arrow-up"></i></div>
+                <div>
+                  <h3>Nhập Bổ sung từ Excel (Import)</h3>
+                  <p>Nạp thêm các chỉ tiêu mapping mới từ file Excel bên ngoài vào hệ thống.</p>
+                </div>
+              </div>
+              <div class="io-body">
+                <div class="dropzone-box" id="excel-dropzone">
+                  <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                  <h4>Kéo và thả file Excel (.xlsx) vào đây</h4>
+                  <p>hoặc <strong>nhấp vào đây</strong> để chọn file từ máy</p>
+                  <input type="file" id="excel-file-selector" accept=".xlsx, .xls" style="display:none">
+                </div>
+                <div id="import-upload-result" class="import-feedback"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL: VIEW FIELD DETAIL -->
+  <div class="modal-backdrop" id="modal-field-detail">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-badge-sys" id="modal-view-sys-badge">CIC</span>
+          <h3 id="modal-view-title">Chi tiết Chỉ tiêu Ánh xạ</h3>
+        </div>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-view-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-clean btn-close-modal">Đóng</button>
+        <button id="btn-trigger-edit-from-view" class="btn btn-primary-gradient">
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>Chỉnh sửa chỉ tiêu này</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT / CREATE FIELD -->
+  <div class="modal-backdrop" id="modal-field-edit">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <h3 id="modal-form-title">Chỉnh sửa Chỉ tiêu Mapping</h3>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-field-mapping">
+          <input type="hidden" id="form-id">
+          
+          <div class="form-row-2">
+            <div class="form-group-clean">
+              <label>Hệ thống: *</label>
+              <select id="form-system" class="select-clean w-100" required>
+                <option value="CIC">CIC (QĐ 573)</option>
+                <option value="TT35">TT35 (NHNN)</option>
+              </select>
+            </div>
+            <div class="form-group-clean">
+              <label>Mã Mẫu Báo cáo: *</label>
+              <input type="text" id="form-report" class="input-clean w-100" placeholder="Ví dụ: KU, D31, B00214..." required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group-clean">
+              <label>Mã Chỉ tiêu / Cột đích: *</label>
+              <input type="text" id="form-field-code" class="input-clean w-100 font-mono" placeholder="Ví dụ: KU001, NGAN_HAN..." required>
+            </div>
+            <div class="form-group-clean">
+              <label>Tên Nghiệp vụ Tiếng Việt: *</label>
+              <input type="text" id="form-field-name-vi" class="input-clean w-100" placeholder="Ví dụ: Số khế ước nhận nợ..." required>
+            </div>
+          </div>
+
+          <div class="form-row-3">
+            <div class="form-group-clean">
+              <label>Kiểu dữ liệu:</label>
+              <input type="text" id="form-data-type" class="input-clean w-100 font-mono" placeholder="VARCHAR2(50), NUMBER(18,2)...">
+            </div>
+            <div class="form-group-clean">
+              <label>Bảng đích (Target Table):</label>
+              <input type="text" id="form-target-table" class="input-clean w-100 font-mono" placeholder="CIC_KU, RPTB_B00214...">
+            </div>
+            <div class="form-group-clean">
+              <label>Trạng thái:</label>
+              <select id="form-status" class="select-clean w-100">
+                <option value="Active">Active (Đang áp dụng)</option>
+                <option value="Draft">Draft (Bản thảo)</option>
+                <option value="Deprecated">Deprecated (Hết hiệu lực)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="highlight-form-box">
+            <div class="box-title"><i class="fa-solid fa-database"></i> Thông tin Nguồn (Source) & Quy tắc Chuyển đổi</div>
+            <div class="form-row-2">
+              <div class="form-group-clean">
+                <label>Bảng nguồn (ODS / Core Table):</label>
+                <input type="text" id="form-source-table" class="input-clean w-100 font-mono" placeholder="Ví dụ: ODS_OD_ACCOUNT, ODS_LOAN_ACCOUNT_HIST...">
+              </div>
+              <div class="form-group-clean">
+                <label>Cột nguồn (Source Column):</label>
+                <input type="text" id="form-source-column" class="input-clean w-100 font-mono" placeholder="Ví dụ: account_number, outstanding...">
+              </div>
+            </div>
+
+            <div class="form-group-clean">
+              <label>Công thức / Quy tắc lọc (Transformation Rule):</label>
+              <textarea id="form-transformation-rule" class="textarea-clean w-100 font-mono" rows="2" placeholder="Ví dụ: to_char(a.value_date, 'YYYYMMDD') hoặc điều kiện WHERE..."></textarea>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group-clean">
+                <label>Bảng mã quy đổi (Lookup Ref):</label>
+                <input type="text" id="form-lookup-ref" class="input-clean w-100" placeholder="Ví dụ: CIC_BANG_MA_MAP, Bảng mã 09/CIC...">
+              </div>
+              <div class="form-group-clean">
+                <label>Package / Procedure thực thi:</label>
+                <input type="text" id="form-implemented-by" class="input-clean w-100 font-mono" placeholder="Ví dụ: PK_CIC_CALC.fn_CIC_KU, PR_B00214...">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group-clean">
+              <label>Căn cứ quy định:</label>
+              <input type="text" id="form-regulatory-ref" class="input-clean w-100" placeholder="Ví dụ: QĐ 573/QĐ-NHNN, TT 35/2015...">
+            </div>
+            <div class="form-group-clean">
+              <label>Ghi chú nghiệp vụ:</label>
+              <input type="text" id="form-notes" class="input-clean w-100" placeholder="Ghi chú điều kiện hoặc người phụ trách...">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-clean btn-close-modal">Hủy</button>
+        <button id="btn-save-field" class="btn btn-primary-gradient">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Lưu thông tin</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-hub" class="toast-hub"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
