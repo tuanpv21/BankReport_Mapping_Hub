@@ -48,7 +48,6 @@ def ensure_data_seeded():
         matrix_cnt = 0
         if "has_matrix" in has_matrix_cols:
             matrix_cnt = cur.execute("SELECT COUNT(*) FROM reports WHERE has_matrix = 1").fetchone()[0]
-        conn.close()
 
         if cnt == 0:
             print("[Startup] Initializing base report mappings...")
@@ -70,6 +69,7 @@ def ensure_data_seeded():
                 INSERT INTO users (username, password_hash, full_name, department, role, avatar_color)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, demo_users)
+            conn.commit()
             print("[Startup] Seeded demo users")
 
         # Seed sample comments
@@ -85,8 +85,10 @@ def ensure_data_seeded():
                 INSERT INTO comments (user_id, username, full_name, department, avatar_color, target_type, target_id, report_code, field_code, content, tag)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, sample_comments)
+            conn.commit()
             print("[Startup] Seeded sample comments")
 
+        conn.close()
     except Exception as e:
         print(f"[Startup Warning] Seeding check: {e}")
 

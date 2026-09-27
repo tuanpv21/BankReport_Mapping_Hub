@@ -144,11 +144,20 @@ class PostgresConnectionWrapper:
         self._conn.close()
 
 
+def _get_pg_raw_conn():
+    """Builds raw psycopg2 connection, ensuring sslmode=require for cloud PostgreSQL (Supabase/Render)."""
+    url = DATABASE_URL
+    if ("localhost" not in url and "127.0.0.1" not in url) and "sslmode=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslmode=require"
+    return psycopg2.connect(url)
+
+
 def get_db():
     """Returns database connection: PostgreSQL if DATABASE_URL is set, else SQLite."""
     if DATABASE_URL and PSYCOPG2_AVAILABLE:
         try:
-            conn = psycopg2.connect(DATABASE_URL)
+            conn = _get_pg_raw_conn()
             return PostgresConnectionWrapper(conn)
         except Exception as e:
             print(f"[Database Error] Could not connect to PostgreSQL ({e}). Falling back to SQLite.")
@@ -228,7 +237,7 @@ def _init_sqlite_schema():
 
 
 def _init_postgres_schema():
-    raw_conn = psycopg2.connect(DATABASE_URL)
+    raw_conn = _get_pg_raw_conn()
     cur = raw_conn.cursor()
 
     # 1. systems
@@ -376,6 +385,14 @@ def _migrate_sqlite_to_postgres(pg_conn):
             print(f"[Migration] Copied {len(data_tuples)} records into table '{tbl}' in PostgreSQL.")
         except Exception as e:
             print(f"[Migration Warning] Error migrating table {tbl}: {e}")
+            pg_conn.rollback()
+
+    # Reset SERIAL sequences so new inserts don't collide with migrated IDs
+    for seq_tbl in ["mappings", "code_lookups", "users", "comments"]:
+        try:
+            pg_cur.execute(f"SELECT setval(pg_get_serial_sequence('{seq_tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {seq_tbl}), 1));")
+            pg_conn.commit()
+        except Exception as e:
             pg_conn.rollback()
 
     sq_conn.close()
