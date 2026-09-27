@@ -2,7 +2,8 @@
 """
 Export Engine for BankReport Mapping Hub.
 Exports mappings to:
-  - Excel Spec (.xlsx)
+  - Excel Spec (.xlsx) matching exact template:
+    STT | Table | Column | DataType | Tên nghiệp vụ (Mô tả) | Ghi chú điều kiện | Bảng nguồn | Cột nguồn | Công thức tính
   - Word Document (.docx)
 """
 
@@ -27,18 +28,16 @@ def export_to_excel(system_code=None, report_code=None, output_path=None):
     cur = conn.cursor()
 
     query = """
-        SELECT m.system_code, m.report_code, r.report_name, m.field_code, m.field_name_vi,
-               m.data_type, m.target_table, m.source_table, m.source_column,
-               m.transformation_rule, m.lookup_ref, m.implemented_by, m.regulatory_ref, m.notes, m.status
+        SELECT m.target_table, m.field_code, m.data_type, m.field_name_vi,
+               m.notes, m.source_table, m.source_column, m.transformation_rule
         FROM mappings m
-        LEFT JOIN reports r ON m.report_code = r.report_code AND m.system_code = r.system_code
         WHERE 1=1
     """
     params = []
-    if system_code:
+    if system_code and system_code != "ALL":
         query += " AND m.system_code = ?"
         params.append(system_code)
-    if report_code:
+    if report_code and report_code != "ALL":
         query += " AND m.report_code = ?"
         params.append(report_code)
     query += " ORDER BY m.system_code, m.report_code, m.id"
@@ -49,11 +48,13 @@ def export_to_excel(system_code=None, report_code=None, output_path=None):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Mapping Matrix"
+    ws.title = "Mapping Spec"
 
+    # Header styling
     header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
     header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     data_font = Font(name="Calibri", size=10)
+    mono_font = Font(name="Consolas", size=10)
     thin_border = Border(
         left=Side(style="thin", color="D1D5DB"),
         right=Side(style="thin", color="D1D5DB"),
@@ -63,32 +64,35 @@ def export_to_excel(system_code=None, report_code=None, output_path=None):
     align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
+    # 9 standard columns matching user template
     headers = [
-        "STT", "Hệ thống", "Mã Báo cáo", "Tên Báo cáo", "Mã Chỉ tiêu / Cột đích",
-        "Tên Chỉ tiêu Tiếng Việt", "Kiểu dữ liệu", "Bảng đích", "Bảng nguồn",
-        "Cột nguồn", "Công thức / Quy tắc tính toán", "Bảng mã quy đổi",
-        "Chương trình thực thi", "Căn cứ quy định", "Ghi chú", "Trạng thái"
+        "STT", "Table", "Column", "DataType", "Tên nghiệp vụ (Mô tả)",
+        "Ghi chú điều kiện", "Bảng nguồn", "Cột nguồn", "Công thức tính"
     ]
 
-    ws.merge_cells("A1:P1")
+    # Title row
+    ws.merge_cells("A1:I1")
     title_cell = ws["A1"]
-    title_cell.value = "MA TRẬN ĐẶC TẢ ÁNH XẠ NGHIỆP VỤ SANG KỸ THUẬT (MAPPING SPECIFICATION)"
+    title_cell.value = f"BẢNG MA TRẬN MAPPING CHỈ TIÊU BÁO CÁO ({system_code or 'TT35 & CIC'})"
     title_cell.font = Font(name="Calibri", size=14, bold=True, color="1E3A8A")
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 30
+    ws.row_dimensions[1].height = 28
 
+    # Header row
     for col_idx, h in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col_idx, value=h)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = align_center
         cell.border = thin_border
-    ws.row_dimensions[3].height = 28
+    ws.row_dimensions[3].height = 26
 
+    # Data rows
     for r_idx, r_data in enumerate(rows, 1):
         row_num = r_idx + 3
-        ws.row_dimensions[row_num].height = 22
-        
+        ws.row_dimensions[row_num].height = 20
+
+        # STT
         c_stt = ws.cell(row=row_num, column=1, value=r_idx)
         c_stt.alignment = align_center
         c_stt.font = data_font
@@ -96,13 +100,15 @@ def export_to_excel(system_code=None, report_code=None, output_path=None):
 
         for c_idx, val in enumerate(r_data, 2):
             cell = ws.cell(row=row_num, column=c_idx, value=val or "")
-            cell.font = data_font
             cell.border = thin_border
-            if c_idx in (2, 3, 5, 7, 8, 9, 10, 16):
-                cell.alignment = align_center
+            if c_idx in (2, 3, 4, 7, 8):
+                cell.alignment = align_center if c_idx == 4 else align_left
+                cell.font = mono_font if c_idx in (2, 3, 4, 7, 8) else data_font
             else:
                 cell.alignment = align_left
+                cell.font = data_font
 
+    # Auto column width
     for col in ws.columns:
         max_len = 0
         col_letter = get_column_letter(col[0].column)
@@ -112,7 +118,7 @@ def export_to_excel(system_code=None, report_code=None, output_path=None):
             val_str = str(cell.value or "")
             if len(val_str) > max_len:
                 max_len = len(val_str)
-        ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 40)
+        ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 45)
 
     ws.freeze_panes = "A4"
     wb.save(output_path)
@@ -127,18 +133,18 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
     cur = conn.cursor()
 
     query = """
-        SELECT m.system_code, m.report_code, r.report_name, m.field_code, m.field_name_vi,
-               m.data_type, m.target_table, m.source_table, m.source_column,
-               m.transformation_rule, m.lookup_ref, m.implemented_by, m.regulatory_ref, m.notes
+        SELECT m.system_code, m.report_code, r.report_name, m.target_table, m.field_code, 
+               m.data_type, m.field_name_vi, m.notes, m.source_table, m.source_column, 
+               m.transformation_rule, m.regulatory_ref
         FROM mappings m
         LEFT JOIN reports r ON m.report_code = r.report_code AND m.system_code = r.system_code
         WHERE 1=1
     """
     params = []
-    if system_code:
+    if system_code and system_code != "ALL":
         query += " AND m.system_code = ?"
         params.append(system_code)
-    if report_code:
+    if report_code and report_code != "ALL":
         query += " AND m.report_code = ?"
         params.append(report_code)
     query += " ORDER BY m.system_code, m.report_code, m.id"
@@ -190,17 +196,12 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
         r_h2.font.bold = True
         r_h2.font.color.rgb = RGBColor(15, 23, 42)
 
-        p_desc = doc.add_paragraph()
-        r_desc = p_desc.add_run(f"Tổng số chỉ tiêu quy đổi: {len(info['items'])} trường dữ liệu.")
-        r_desc.font.name = "Times New Roman"
-        r_desc.font.italic = True
-
-        tbl = doc.add_table(rows=1, cols=6)
+        tbl = doc.add_table(rows=1, cols=7)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
         tbl.autofit = False
 
-        headers = ["STT", "Mã / Cột", "Tên Nghiệp vụ", "Nguồn (Bảng.Cột)", "Công thức / Điều kiện", "Căn cứ quy định"]
-        widths = [Inches(0.5), Inches(1.0), Inches(1.8), Inches(1.5), Inches(1.7), Inches(1.0)]
+        headers = ["STT", "Table", "Column", "DataType", "Tên Nghiệp vụ (Mô tả)", "Nguồn (Bảng.Cột)", "Công thức tính"]
+        widths = [Inches(0.4), Inches(1.1), Inches(1.0), Inches(0.9), Inches(1.7), Inches(1.4), Inches(1.5)]
 
         hdr_cells = tbl.rows[0].cells
         for idx, text in enumerate(headers):
@@ -209,21 +210,22 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
             run = hdr_cells[idx].paragraphs[0].runs[0]
             run.font.name = "Times New Roman"
             run.font.bold = True
-            run.font.size = Pt(9.5)
+            run.font.size = Pt(9)
             run.font.color.rgb = RGBColor(255, 255, 255)
             shading = docx.oxml.parse_xml(r'<w:shd {} w:fill="1E3A8A"/>'.format(docx.oxml.ns.nsdecls('w')))
             hdr_cells[idx]._tc.get_or_add_tcPr().append(shading)
 
         for stt, item in enumerate(info['items'], 1):
             row_cells = tbl.add_row().cells
-            src_str = f"{item[7]}.{item[8]}" if item[7] and item[8] else (item[7] or item[8] or "-")
+            src_str = f"{item[8]}.{item[9]}" if item[8] and item[9] else (item[8] or item[9] or "-")
             row_values = [
                 str(stt),
                 item[3] or "-",
                 item[4] or "-",
+                item[5] or "-",
+                item[6] or "-",
                 src_str,
-                item[9] or item[10] or "-",
-                item[12] or "-"
+                item[10] or item[7] or "-"
             ]
             for idx, val in enumerate(row_values):
                 row_cells[idx].text = val
@@ -231,8 +233,8 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
                 if row_cells[idx].paragraphs[0].runs:
                     r = row_cells[idx].paragraphs[0].runs[0]
                     r.font.name = "Times New Roman"
-                    r.font.size = Pt(9)
-        
+                    r.font.size = Pt(8.5)
+
         doc.add_paragraph()
 
     doc.save(output_path)

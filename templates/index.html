@@ -34,6 +34,10 @@
           <i class="fa-solid fa-book-bookmark"></i>
           <span>Tra cứu & Quản lý Mapping</span>
         </button>
+        <button class="nav-link" data-tab="tab-studio">
+          <i class="fa-solid fa-bolt text-amber"></i>
+          <span>Studio Bóc tách Procedure</span>
+        </button>
         <button class="nav-link" data-tab="tab-lineage">
           <i class="fa-solid fa-route"></i>
           <span>Phân tích Tác động (Lineage)</span>
@@ -67,6 +71,10 @@
         </div>
 
         <div class="topbar-right">
+          <button id="btn-top-open-studio" class="btn btn-amber-solid" title="Mở Studio Bóc tách SQL">
+            <i class="fa-solid fa-bolt"></i>
+            <span>Bóc tách Procedure</span>
+          </button>
           <button id="btn-open-create" class="btn btn-primary-gradient">
             <i class="fa-solid fa-plus"></i>
             <span>Thêm chỉ tiêu mới</span>
@@ -86,7 +94,9 @@
       <!-- Dynamic Content Views -->
       <main class="page-content">
 
-        <!-- VIEW 1: DASHBOARD -->
+        <!-- ========================================== -->
+        <!-- VIEW 1: DASHBOARD                          -->
+        <!-- ========================================== -->
         <section id="tab-dashboard" class="tab-view active">
           <div class="welcome-banner">
             <div class="banner-text">
@@ -194,7 +204,10 @@
           </div>
         </section>
 
-        <!-- VIEW 2: MASTER-DETAIL EXPLORER -->
+
+        <!-- ========================================== -->
+        <!-- VIEW 2: MASTER-DETAIL EXPLORER             -->
+        <!-- ========================================== -->
         <section id="tab-explorer" class="tab-view">
           <div class="explorer-layout">
             <!-- Left Pane: Reports Master List -->
@@ -225,7 +238,11 @@
                   </div>
                 </div>
                 <div class="banner-right">
-                  <button id="btn-export-active-report" class="btn btn-outline-clean">
+                  <button id="btn-jump-to-studio" class="btn btn-amber-solid" title="Bóc tách tự động từ code Procedure">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Bóc tách Procedure</span>
+                  </button>
+                  <button id="btn-export-active-report" class="btn btn-outline-clean" title="Xuất file Excel cho mẫu này">
                     <i class="fa-solid fa-file-excel text-emerald"></i>
                     <span>Xuất báo cáo này</span>
                   </button>
@@ -247,17 +264,21 @@
                 </div>
               </div>
 
+              <!-- EXACT EXCEL TEMPLATE COLUMNS -->
               <div class="detail-table-card">
                 <div class="table-scroll-wrap">
                   <table class="modern-table">
                     <thead>
                       <tr>
-                        <th width="140">Mã / Cột Đích</th>
-                        <th width="240">Tên Chỉ tiêu Nghiệp vụ</th>
-                        <th width="110">Kiểu DL</th>
-                        <th width="260">Nguồn Dữ liệu (ODS / Core)</th>
-                        <th>Công thức / Quy tắc tính</th>
-                        <th width="90">Trạng thái</th>
+                        <th width="50" class="text-center">STT</th>
+                        <th width="120">Table</th>
+                        <th width="120">Column</th>
+                        <th width="100">DataType</th>
+                        <th width="220">Tên nghiệp vụ (Mô tả)</th>
+                        <th width="150">Ghi chú điều kiện</th>
+                        <th width="160">Bảng nguồn</th>
+                        <th width="140">Cột nguồn</th>
+                        <th>Công thức tính</th>
                         <th width="80" class="text-right">Thao tác</th>
                       </tr>
                     </thead>
@@ -269,7 +290,101 @@
           </div>
         </section>
 
-        <!-- VIEW 3: LINEAGE & IMPACT ANALYSIS -->
+
+        <!-- ========================================== -->
+        <!-- VIEW 3: PROCEDURE & PACKAGE STUDIO         -->
+        <!-- ========================================== -->
+        <section id="tab-studio" class="tab-view">
+          <div class="section-title-wrap">
+            <h1>Studio Bóc tách & Quản lý Procedure / Package</h1>
+            <p>Dán mã nguồn PL/SQL (INSERT INTO ... SELECT ... hoặc UPDATE ...), hệ thống sẽ tự động bóc tách cột nguồn, cột đích, biểu thức tính và comment tiếng Việt.</p>
+          </div>
+
+          <div class="card-clean mb-4">
+            <div class="card-clean-header flex-between">
+              <div class="d-flex align-center gap-3">
+                <div class="io-icon bg-amber-subtle text-amber"><i class="fa-solid fa-bolt"></i></div>
+                <div>
+                  <h3 class="m-0">Nhập Mã Nguồn PL/SQL Procedure / Script</h3>
+                  <span class="text-subtle" style="font-size:12px;">Hỗ trợ câu lệnh INSERT, UPDATE, SUBQUERY và các dòng SELECT kèm comment chú thích.</span>
+                </div>
+              </div>
+              <div class="studio-top-controls">
+                <select id="studio-select-report" class="select-clean" style="min-width: 220px;">
+                  <!-- Reports options -->
+                </select>
+                <input type="text" id="studio-proc-name" class="input-clean font-mono" placeholder="Tên Procedure (ví dụ: fn_CIC_KU, PR_B00214)..." style="width: 200px;">
+              </div>
+            </div>
+
+            <div class="p-3">
+              <textarea id="studio-sql-input" class="textarea-clean w-100 font-mono" rows="9" placeholder="Dán mã nguồn câu lệnh SQL vào đây... Ví dụ:&#10;insert into CIC_KU&#10;  select a.customer_id TTC03, ---- Mã KH&#10;         a.account_number KU001, ---- Số khế ước&#10;         to_char(a.value_date, 'YYYYMMDD') KU002 ---- Ngày giải ngân&#10;  from ODS_OD_ACCOUNT a;"></textarea>
+
+              <div class="flex-between mt-3">
+                <div class="d-flex gap-2">
+                  <button id="btn-parse-procedure" class="btn btn-amber-solid btn-lg">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Bóc tách Cú pháp SQL</span>
+                  </button>
+                  <button id="btn-load-sample-sql" class="btn btn-outline-clean">
+                    <i class="fa-solid fa-file-code"></i>
+                    <span>Nạp mẫu PL/SQL</span>
+                  </button>
+                </div>
+                <button id="btn-save-procedure-code" class="btn btn-outline-clean" title="Lưu mã code này vào báo cáo">
+                  <i class="fa-solid fa-floppy-disk"></i>
+                  <span>Lưu mã Procedure</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Studio Preview Result Table -->
+          <div class="card-clean" id="studio-results-card">
+            <div class="card-clean-header flex-between">
+              <div>
+                <h3 id="studio-preview-title">Bảng Đối soát & Xem trước Kết quả Bóc tách (Preview Matrix)</h3>
+                <span class="text-subtle" id="studio-preview-sub">Bấm nút "Bóc tách Cú pháp SQL" ở trên để xem kết quả. Bạn có thể chỉnh sửa trực tiếp các ô trước khi áp dụng.</span>
+              </div>
+              <div class="d-flex align-center gap-2">
+                <span class="badge-count" id="studio-parsed-count">0 chỉ tiêu</span>
+                <button id="btn-apply-parsed-mappings" class="btn btn-emerald-solid" disabled>
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span>Áp dụng vào Bảng Mapping</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="table-scroll-wrap" style="max-height: 480px;">
+              <table class="modern-table" id="studio-preview-table">
+                <thead>
+                  <tr>
+                    <th width="50" class="text-center">STT</th>
+                    <th width="120">Table</th>
+                    <th width="120">Column</th>
+                    <th width="100">DataType</th>
+                    <th width="220">Tên nghiệp vụ (Mô tả)</th>
+                    <th width="150">Ghi chú điều kiện</th>
+                    <th width="160">Bảng nguồn</th>
+                    <th width="140">Cột nguồn</th>
+                    <th>Công thức tính</th>
+                    <th width="60" class="text-center">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="studio-preview-tbody">
+                  <tr>
+                    <td colspan="10" class="text-center py-5 text-muted">Chưa có dữ liệu bóc tách. Hãy dán câu lệnh SQL ở khung trên và bấm "Bóc tách Cú pháp SQL".</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 4: LINEAGE & IMPACT ANALYSIS          -->
+        <!-- ========================================== -->
         <section id="tab-lineage" class="tab-view">
           <div class="section-title-wrap">
             <h1>Phân tích Tác động & Luồng Dữ liệu (Impact Lineage)</h1>
@@ -332,11 +447,14 @@
           </div>
         </section>
 
-        <!-- VIEW 4: IMPORT / EXPORT -->
+
+        <!-- ========================================== -->
+        <!-- VIEW 5: IMPORT / EXPORT                    -->
+        <!-- ========================================== -->
         <section id="tab-export" class="tab-view">
           <div class="section-title-wrap">
             <h1>Xuất / Nhập Tài liệu Đặc tả (Specification)</h1>
-            <p>Tự động xuất file Excel Ma trận ánh xạ hoặc tài liệu Word Đặc tả kỹ thuật phục vụ kiểm toán, phê duyệt và bàn giao.</p>
+            <p>Tự động xuất file Excel Ma trận ánh xạ hoặc tài liệu Word Đặc tả kỹ thuật theo đúng template chuẩn 9 cột.</p>
           </div>
 
           <div class="io-grid">
@@ -345,7 +463,7 @@
                 <div class="io-icon bg-emerald-subtle text-emerald"><i class="fa-solid fa-file-arrow-down"></i></div>
                 <div>
                   <h3>Xuất Tài liệu Báo cáo (Export)</h3>
-                  <p>Tạo file Excel hoặc Word có định dạng chuẩn mẫu nghiệp vụ ngân hàng.</p>
+                  <p>Tạo file Excel 9 cột hoặc tài liệu Word đặc tả nghiệp vụ ngân hàng.</p>
                 </div>
               </div>
               <div class="io-body">
@@ -381,14 +499,14 @@
                 <div class="io-icon bg-indigo-subtle text-indigo"><i class="fa-solid fa-file-arrow-up"></i></div>
                 <div>
                   <h3>Nhập Bổ sung từ Excel (Import)</h3>
-                  <p>Nạp thêm các chỉ tiêu mapping mới từ file Excel bên ngoài vào hệ thống.</p>
+                  <p>Nạp file Excel theo đúng 9 cột mẫu chuẩn để tự động cập nhật hệ thống.</p>
                 </div>
               </div>
               <div class="io-body">
                 <div class="dropzone-box" id="excel-dropzone">
                   <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
                   <h4>Kéo và thả file Excel (.xlsx) vào đây</h4>
-                  <p>hoặc <strong>nhấp vào đây</strong> để chọn file từ máy</p>
+                  <p>Đúng 9 cột: STT | Table | Column | DataType | Tên nghiệp vụ | Ghi chú điều kiện | Bảng nguồn | Cột nguồn | Công thức</p>
                   <input type="file" id="excel-file-selector" accept=".xlsx, .xls" style="display:none">
                 </div>
                 <div id="import-upload-result" class="import-feedback"></div>
@@ -447,38 +565,28 @@
             </div>
           </div>
 
-          <div class="form-row-2">
-            <div class="form-group-clean">
-              <label>Mã Chỉ tiêu / Cột đích: *</label>
-              <input type="text" id="form-field-code" class="input-clean w-100 font-mono" placeholder="Ví dụ: KU001, NGAN_HAN..." required>
-            </div>
-            <div class="form-group-clean">
-              <label>Tên Nghiệp vụ Tiếng Việt: *</label>
-              <input type="text" id="form-field-name-vi" class="input-clean w-100" placeholder="Ví dụ: Số khế ước nhận nợ..." required>
-            </div>
-          </div>
-
           <div class="form-row-3">
             <div class="form-group-clean">
-              <label>Kiểu dữ liệu:</label>
-              <input type="text" id="form-data-type" class="input-clean w-100 font-mono" placeholder="VARCHAR2(50), NUMBER(18,2)...">
-            </div>
-            <div class="form-group-clean">
-              <label>Bảng đích (Target Table):</label>
+              <label>Table (Bảng đích):</label>
               <input type="text" id="form-target-table" class="input-clean w-100 font-mono" placeholder="CIC_KU, RPTB_B00214...">
             </div>
             <div class="form-group-clean">
-              <label>Trạng thái:</label>
-              <select id="form-status" class="select-clean w-100">
-                <option value="Active">Active (Đang áp dụng)</option>
-                <option value="Draft">Draft (Bản thảo)</option>
-                <option value="Deprecated">Deprecated (Hết hiệu lực)</option>
-              </select>
+              <label>Column (Cột đích): *</label>
+              <input type="text" id="form-field-code" class="input-clean w-100 font-mono" placeholder="Ví dụ: KU001, NGAN_HAN..." required>
+            </div>
+            <div class="form-group-clean">
+              <label>DataType (Kiểu DL):</label>
+              <input type="text" id="form-data-type" class="input-clean w-100 font-mono" placeholder="VARCHAR2(50), NUMBER(18,2)...">
             </div>
           </div>
 
+          <div class="form-group-clean">
+            <label>Tên Nghiệp vụ (Mô tả): *</label>
+            <input type="text" id="form-field-name-vi" class="input-clean w-100" placeholder="Ví dụ: Số khế ước nhận nợ..." required>
+          </div>
+
           <div class="highlight-form-box">
-            <div class="box-title"><i class="fa-solid fa-database"></i> Thông tin Nguồn (Source) & Quy tắc Chuyển đổi</div>
+            <div class="box-title"><i class="fa-solid fa-database"></i> Nguồn Dữ liệu & Công thức tính</div>
             <div class="form-row-2">
               <div class="form-group-clean">
                 <label>Bảng nguồn (ODS / Core Table):</label>
@@ -491,30 +599,23 @@
             </div>
 
             <div class="form-group-clean">
-              <label>Công thức / Quy tắc lọc (Transformation Rule):</label>
-              <textarea id="form-transformation-rule" class="textarea-clean w-100 font-mono" rows="2" placeholder="Ví dụ: to_char(a.value_date, 'YYYYMMDD') hoặc điều kiện WHERE..."></textarea>
-            </div>
-
-            <div class="form-row-2">
-              <div class="form-group-clean">
-                <label>Bảng mã quy đổi (Lookup Ref):</label>
-                <input type="text" id="form-lookup-ref" class="input-clean w-100" placeholder="Ví dụ: CIC_BANG_MA_MAP, Bảng mã 09/CIC...">
-              </div>
-              <div class="form-group-clean">
-                <label>Package / Procedure thực thi:</label>
-                <input type="text" id="form-implemented-by" class="input-clean w-100 font-mono" placeholder="Ví dụ: PK_CIC_CALC.fn_CIC_KU, PR_B00214...">
-              </div>
+              <label>Công thức tính (Expression):</label>
+              <textarea id="form-transformation-rule" class="textarea-clean w-100 font-mono" rows="2" placeholder="Ví dụ: to_char(a.value_date, 'YYYYMMDD') hoặc biểu thức SQL..."></textarea>
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group-clean">
-              <label>Căn cứ quy định:</label>
-              <input type="text" id="form-regulatory-ref" class="input-clean w-100" placeholder="Ví dụ: QĐ 573/QĐ-NHNN, TT 35/2015...">
+              <label>Ghi chú điều kiện:</label>
+              <input type="text" id="form-notes" class="input-clean w-100" placeholder="Ghi chú điều kiện lọc hoặc lưu ý...">
             </div>
             <div class="form-group-clean">
-              <label>Ghi chú nghiệp vụ:</label>
-              <input type="text" id="form-notes" class="input-clean w-100" placeholder="Ghi chú điều kiện hoặc người phụ trách...">
+              <label>Trạng thái:</label>
+              <select id="form-status" class="select-clean w-100">
+                <option value="Active">Active (Đang áp dụng)</option>
+                <option value="Draft">Draft (Bản thảo)</option>
+                <option value="Deprecated">Deprecated (Hết hiệu lực)</option>
+              </select>
             </div>
           </div>
         </form>

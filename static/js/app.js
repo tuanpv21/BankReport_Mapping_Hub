@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeReport = null;
   let activeReportFields = [];
   let activeTab = "tab-dashboard";
+  let currentParsedFields = [];
 
   const tabLinks = document.querySelectorAll(".nav-link");
   const tabViews = document.querySelectorAll(".tab-view");
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initNav();
   initGlobalSearch();
   initExplorer();
+  initStudio();
   initLineage();
   initExportImport();
   initModals();
@@ -39,6 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tabId === "tab-explorer" && !activeReport && allReports.length > 0) {
       selectReport(allReports[0]);
     }
+    if (tabId === "tab-studio") {
+      populateStudioDropdown();
+    }
   }
 
   function showToast(msg, type = "info") {
@@ -54,6 +59,21 @@ document.addEventListener("DOMContentLoaded", () => {
       toast.style.opacity = "0";
       setTimeout(() => toast.remove(), 250);
     }, 3500);
+  }
+
+  function escapeHtml(text) {
+    if (!text) return "";
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function truncate(str, max = 40) {
+    if (!str) return "";
+    return str.length > max ? str.substring(0, max) + "..." : str;
   }
 
   async function loadStats() {
@@ -88,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderDashboardChips();
       renderMasterReportsList();
       populateExportDropdown();
+      populateStudioDropdown();
 
       if (allReports.length > 0 && !activeReport) {
         selectReport(allReports[0]);
@@ -100,17 +121,24 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderDashboardChips() {
     const cicBox = document.getElementById("dash-cic-chips");
     const tt35Box = document.getElementById("dash-tt35-chips");
+
     cicBox.innerHTML = "";
     tt35Box.innerHTML = "";
 
     allReports.forEach(r => {
       const chip = document.createElement("div");
-      chip.className = "report-chip-item";
-      chip.innerHTML = `<span>${r.report_code}</span> <span class="chip-count">(${r.field_count})</span>`;
-      chip.title = `${r.report_name} - ${r.field_count} chỉ tiêu`;
+      chip.className = "report-item-chip";
+      chip.innerHTML = `
+        <div class="chip-meta">
+          <strong>${r.report_code}</strong>
+          <span>${r.field_count} chỉ tiêu</span>
+        </div>
+        <p class="chip-desc">${escapeHtml(r.report_name || r.report_code)}</p>
+      `;
+
       chip.addEventListener("click", () => {
-        selectReport(r);
         switchTab("tab-explorer");
+        selectReport(r);
       });
 
       if (r.system_code === "CIC") {
@@ -147,6 +175,20 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = `/api/export/excel?system=${activeReport.system_code}&report=${activeReport.report_code}`;
       }
     });
+
+    const btnJump = document.getElementById("btn-jump-to-studio");
+    if (btnJump) {
+      btnJump.addEventListener("click", () => {
+        switchTab("tab-studio");
+        if (activeReport) {
+          const sel = document.getElementById("studio-select-report");
+          if (sel) {
+            sel.value = `${activeReport.system_code}::${activeReport.report_code}`;
+            loadProcedureForSelectedReport();
+          }
+        }
+      });
+    }
   }
 
   function renderMasterReportsList() {
@@ -182,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="report-sys-indicator ${indClass}"></div>
           <div class="report-card-text">
             <h5>${r.report_code}</h5>
-            <p title="${r.report_name}">${r.report_name || r.report_code}</p>
+            <p title="${escapeHtml(r.report_name)}">${escapeHtml(r.report_name || r.report_code)}</p>
           </div>
         </div>
         <div class="report-card-badge">${r.field_count}</div>
@@ -203,23 +245,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("active-report-badge").textContent = report.report_code;
     document.getElementById("active-report-title").textContent = `[${report.system_code}] ${report.report_code} - ${report.report_name || ''}`;
-    document.getElementById("active-report-desc").textContent = `Bảng đích: ${report.target_table || '-'} | Quy định: ${report.regulation_ref || 'QĐ NHNN'}`;
+    document.getElementById("active-report-desc").textContent = `Bảng đích: ${report.target_table || report.report_code} | Quy định: ${report.regulation_ref || 'QĐ NHNN'}`;
 
     document.getElementById("field-filter-input").value = "";
     document.getElementById("filter-field-status").value = "ALL";
 
     const tbody = document.getElementById("fields-table-body");
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu chỉ tiêu...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu chỉ tiêu...</td></tr>';
 
     try {
       const res = await fetch(`/api/mappings?system=${report.system_code}&report=${report.report_code}`);
       activeReportFields = await res.json();
       filterAndRenderFields();
     } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-rose">Lỗi khi tải chỉ tiêu của báo cáo này.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-rose">Lỗi khi tải chỉ tiêu của báo cáo này.</td></tr>';
     }
   }
 
+  // Render 9 standard columns: STT | Table | Column | DataType | Tên nghiệp vụ | Ghi chú điều kiện | Bảng nguồn | Cột nguồn | Công thức tính | Thao tác
   function filterAndRenderFields() {
     const tbody = document.getElementById("fields-table-body");
     const searchVal = document.getElementById("field-filter-input").value.toLowerCase().trim();
@@ -232,54 +275,57 @@ document.addEventListener("DOMContentLoaded", () => {
         (f.field_name_vi && f.field_name_vi.toLowerCase().includes(searchVal)) ||
         (f.source_table && f.source_table.toLowerCase().includes(searchVal)) ||
         (f.source_column && f.source_column.toLowerCase().includes(searchVal)) ||
-        (f.transformation_rule && f.transformation_rule.toLowerCase().includes(searchVal));
+        (f.transformation_rule && f.transformation_rule.toLowerCase().includes(searchVal)) ||
+        (f.notes && f.notes.toLowerCase().includes(searchVal));
       return matchStatus && matchSearch;
     });
 
     document.getElementById("active-fields-count").textContent = `Hiển thị: ${filtered.length} / ${activeReportFields.length} chỉ tiêu`;
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted">Không tìm thấy chỉ tiêu nào phù hợp với từ khóa tìm kiếm.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted">Không tìm thấy chỉ tiêu nào phù hợp với từ khóa tìm kiếm.</td></tr>';
       return;
     }
 
     tbody.innerHTML = "";
-    filtered.forEach(f => {
+    filtered.forEach((f, idx) => {
       const tr = document.createElement("tr");
 
-      let sourceHtml = "";
+      const tblName = f.target_table || (activeReport ? (activeReport.target_table || activeReport.report_code) : "");
+      const colName = f.target_column || f.field_code;
+      const dataType = f.data_type || "VARCHAR2(50)";
+      const businessDesc = f.field_name_vi || f.field_code;
+      const notes = f.notes || "-";
+
+      let sourceTableHtml = "";
       if (f.source_table) {
-        sourceHtml = `
-          <div class="source-badge-box">
-            <span class="src-table-tag"><i class="fa-solid fa-database"></i> ${f.source_table}</span>
-            <span class="src-col-tag">${f.source_column || '-'}</span>
-          </div>
-        `;
+        sourceTableHtml = `<span class="src-table-tag"><i class="fa-solid fa-database"></i> ${escapeHtml(f.source_table)}</span>`;
       } else {
-        sourceHtml = '<span class="unmapped-tag"><i class="fa-solid fa-triangle-exclamation"></i> Chưa map</span>';
+        sourceTableHtml = '<span class="unmapped-tag"><i class="fa-solid fa-triangle-exclamation"></i> Chưa map</span>';
       }
 
-      let ruleHtml = "-";
+      const sourceColHtml = f.source_column ? `<span class="src-col-tag">${escapeHtml(f.source_column)}</span>` : '<span class="text-subtle">-</span>';
+
+      let ruleHtml = '<span class="text-subtle">-</span>';
       if (f.transformation_rule) {
-        ruleHtml = `<span class="rule-code-snippet" title="${f.transformation_rule}">${truncate(f.transformation_rule, 40)}</span>`;
-      } else if (f.notes) {
-        ruleHtml = `<span class="text-subtle" style="font-size:12px;">${truncate(f.notes, 35)}</span>`;
+        ruleHtml = `<span class="rule-code-snippet" title="${escapeHtml(f.transformation_rule)}">${escapeHtml(truncate(f.transformation_rule, 35))}</span>`;
       }
-
-      const statusClass = f.status === "Active" ? "status-active" : "status-draft";
 
       tr.innerHTML = `
-        <td><span class="field-code-badge">${f.field_code}</span></td>
+        <td class="text-center font-mono text-subtle" style="font-size:12px;">${idx + 1}</td>
+        <td><span class="font-mono text-subtle" style="font-size:12px;">${escapeHtml(tblName)}</span></td>
+        <td><span class="field-code-badge">${escapeHtml(colName)}</span></td>
+        <td><span class="font-mono text-subtle" style="font-size:12px;">${escapeHtml(dataType)}</span></td>
         <td>
-          <div class="field-name-title">${f.field_name_vi || f.field_code}</div>
-          <div class="field-name-sub">${f.lookup_ref ? `<span class="tag-lookup"><i class="fa-solid fa-diagram-next"></i> ${f.lookup_ref}</span>` : ''}</div>
+          <div class="field-name-title">${escapeHtml(businessDesc)}</div>
+          ${f.lookup_ref ? `<div class="field-name-sub"><span class="tag-lookup"><i class="fa-solid fa-diagram-next"></i> ${escapeHtml(f.lookup_ref)}</span></div>` : ''}
         </td>
-        <td><span class="font-mono text-subtle" style="font-size:12px;">${f.data_type || 'VARCHAR2(50)'}</span></td>
-        <td>${sourceHtml}</td>
+        <td><span class="text-subtle" style="font-size:12px;">${escapeHtml(notes)}</span></td>
+        <td>${sourceTableHtml}</td>
+        <td>${sourceColHtml}</td>
         <td>${ruleHtml}</td>
-        <td><span class="status-badge ${statusClass}">${f.status || 'Active'}</span></td>
-        <td>
-          <div class="action-btn-group">
+        <td class="text-right">
+          <div class="action-btn-group" style="justify-content: flex-end;">
             <button class="btn-icon-sm btn-view-f" title="Xem chi tiết"><i class="fa-solid fa-eye"></i></button>
             <button class="btn-icon-sm btn-edit-f" title="Sửa chỉ tiêu"><i class="fa-solid fa-pen"></i></button>
           </div>
@@ -293,11 +339,305 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function truncate(str, max = 40) {
-    if (!str) return "";
-    return str.length > max ? str.substring(0, max) + "..." : str;
+  // ==========================================================
+  // PROCEDURE & PACKAGE STUDIO LOGIC
+  // ==========================================================
+  function initStudio() {
+    const reportSelector = document.getElementById("studio-select-report");
+    const procNameInput = document.getElementById("studio-proc-name");
+    const sqlTextarea = document.getElementById("studio-sql-input");
+    const btnParse = document.getElementById("btn-parse-procedure");
+    const btnLoadSample = document.getElementById("btn-load-sample-sql");
+    const btnSaveCode = document.getElementById("btn-save-procedure-code");
+    const btnApply = document.getElementById("btn-apply-parsed-mappings");
+
+    if (reportSelector) {
+      reportSelector.addEventListener("change", () => {
+        loadProcedureForSelectedReport();
+      });
+    }
+
+    if (btnLoadSample) {
+      btnLoadSample.addEventListener("click", () => {
+        const sampleSql = `-- Ví dụ Procedure nạp dữ liệu Khế ước vay CIC
+insert into CIC_KU
+  select a.customer_id TTC03, ---- Mã khách hàng
+         a.account_number KU001, ---- Số khế ước vay
+         to_char(a.value_date, 'YYYYMMDD') KU002, ---- Ngày giải ngân
+         to_char(a.maturity_date, 'YYYYMMDD') KU003, ---- Ngày đáo hạn
+         a.currency KU004, ---- Loại tiền vay
+         a.credit_limit KU005, ---- Hạn mức tín dụng
+         a.outstanding_balance KU006, ---- Dư nợ thực tế
+         b.interest_rate KU007, ---- Lãi suất cho vay
+         nvl(a.loan_purpose, '01') KU008 ---- Mục đích vay vốn
+  from ODS_OD_ACCOUNT a
+  left join ODS_INTEREST_RATE b on a.account_number = b.account_number
+  where a.account_status = 'A';`;
+
+        sqlTextarea.value = sampleSql;
+        if (!procNameInput.value) procNameInput.value = "PKG_CIC_EXPORT.PRC_CIC_KU";
+        showToast("Đã nạp mẫu cú pháp PL/SQL!", "info");
+      });
+    }
+
+    if (btnSaveCode) {
+      btnSaveCode.addEventListener("click", async () => {
+        const selVal = reportSelector.value;
+        if (!selVal) {
+          alert("Vui lòng chọn một báo cáo trước khi lưu!");
+          return;
+        }
+        const [sysCode, rptCode] = selVal.split("::");
+        const procName = procNameInput.value.trim();
+        const sqlText = sqlTextarea.value.trim();
+
+        btnSaveCode.disabled = true;
+        btnSaveCode.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu...';
+
+        try {
+          const res = await fetch(`/api/reports/${rptCode}/procedure`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_code: sysCode,
+              procedure_name: procName,
+              procedure_code: sqlText
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Đã lưu Procedure cho báo cáo ${rptCode}!`, "success");
+          } else {
+            showToast("Lỗi khi lưu mã: " + (data.error || ""), "error");
+          }
+        } catch (e) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        } finally {
+          btnSaveCode.disabled = false;
+          btnSaveCode.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> <span>Lưu mã Procedure</span>';
+        }
+      });
+    }
+
+    if (btnParse) {
+      btnParse.addEventListener("click", async () => {
+        const sqlText = sqlTextarea.value.trim();
+        if (!sqlText) {
+          alert("Vui lòng dán mã nguồn SQL trước khi bấm Bóc tách!");
+          return;
+        }
+
+        const selVal = reportSelector.value;
+        let sysCode = "CIC";
+        let rptCode = "";
+        if (selVal) {
+          const parts = selVal.split("::");
+          sysCode = parts[0];
+          rptCode = parts[1];
+        }
+
+        btnParse.disabled = true;
+        btnParse.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang bóc tách...</span>';
+
+        try {
+          const res = await fetch("/api/procedure/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sql: sqlText,
+              system_code: sysCode,
+              target_table: rptCode ? (sysCode === "CIC" ? `CIC_${rptCode}` : `RPTB_${rptCode}`) : ""
+            })
+          });
+
+          const data = await res.json();
+          if (data.success && data.fields) {
+            currentParsedFields = data.fields;
+            renderStudioPreview(data.fields);
+            btnApply.disabled = (data.fields.length === 0);
+            document.getElementById("studio-parsed-count").textContent = `${data.fields.length} chỉ tiêu`;
+            showToast(`Bóc tách thành công ${data.fields.length} chỉ tiêu từ SQL!`, "success");
+          } else {
+            alert("Lỗi bóc tách: " + (data.error || "Không tìm thấy cấu trúc cột"));
+          }
+        } catch (e) {
+          showToast("Lỗi máy chủ khi bóc tách cú pháp", "error");
+        } finally {
+          btnParse.disabled = false;
+          btnParse.innerHTML = '<i class="fa-solid fa-bolt"></i> <span>Bóc tách Cú pháp SQL</span>';
+        }
+      });
+    }
+
+    if (btnApply) {
+      btnApply.addEventListener("click", async () => {
+        const selVal = reportSelector.value;
+        if (!selVal) {
+          alert("Vui lòng chọn báo cáo đích để áp dụng vào hệ thống!");
+          return;
+        }
+
+        const [sysCode, rptCode] = selVal.split("::");
+        const rows = readStudioPreviewRows();
+
+        if (rows.length === 0) {
+          alert("Không có chỉ tiêu nào trong danh sách xem trước để áp dụng!");
+          return;
+        }
+
+        if (!confirm(`Bạn có chắc muốn áp dụng ${rows.length} chỉ tiêu vào báo cáo [${sysCode}] ${rptCode}?`)) {
+          return;
+        }
+
+        btnApply.disabled = true;
+        btnApply.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang áp dụng...</span>';
+
+        try {
+          const res = await fetch("/api/procedure/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_code: sysCode,
+              report_code: rptCode,
+              target_table: rows[0]?.table || (sysCode === "CIC" ? `CIC_${rptCode}` : `RPTB_${rptCode}`),
+              procedure_name: procNameInput.value.trim(),
+              sql_text: sqlTextarea.value.trim(),
+              fields: rows
+            })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Đã cập nhật ${data.applied_count} chỉ tiêu vào cơ sở dữ liệu!`, "success");
+            loadStats();
+            loadReports();
+            if (activeReport && activeReport.report_code === rptCode && activeReport.system_code === sysCode) {
+              selectReport(activeReport);
+            }
+          } else {
+            showToast("Lỗi khi áp dụng: " + (data.error || "Unknown"), "error");
+          }
+        } catch (e) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        } finally {
+          btnApply.disabled = false;
+          btnApply.innerHTML = '<i class="fa-solid fa-circle-check"></i> <span>Áp dụng vào Bảng Mapping</span>';
+        }
+      });
+    }
   }
 
+  function populateStudioDropdown() {
+    const sel = document.getElementById("studio-select-report");
+    if (!sel || allReports.length === 0) return;
+
+    const currentVal = sel.value;
+    sel.innerHTML = "";
+    allReports.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = `${r.system_code}::${r.report_code}`;
+      opt.textContent = `[${r.system_code}] ${r.report_code} - ${r.report_name} (${r.field_count} cột)`;
+      sel.appendChild(opt);
+    });
+
+    if (currentVal && Array.from(sel.options).some(o => o.value === currentVal)) {
+      sel.value = currentVal;
+    } else if (activeReport) {
+      sel.value = `${activeReport.system_code}::${activeReport.report_code}`;
+      loadProcedureForSelectedReport();
+    }
+  }
+
+  async function loadProcedureForSelectedReport() {
+    const sel = document.getElementById("studio-select-report");
+    if (!sel || !sel.value) return;
+
+    const [sysCode, rptCode] = sel.value.split("::");
+    try {
+      const res = await fetch(`/api/reports/${rptCode}/procedure?system=${sysCode}`);
+      const data = await res.json();
+      const nameInput = document.getElementById("studio-proc-name");
+      const sqlInput = document.getElementById("studio-sql-input");
+
+      if (nameInput) nameInput.value = data.procedure_name || "";
+      if (sqlInput) sqlInput.value = data.procedure_code || "";
+    } catch (e) {
+      console.error("Error loading procedure code:", e);
+    }
+  }
+
+  function renderStudioPreview(fields) {
+    const tbody = document.getElementById("studio-preview-tbody");
+    tbody.innerHTML = "";
+
+    if (!fields || fields.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted">Không bóc tách được trường nào từ câu lệnh SQL trên.</td></tr>';
+      return;
+    }
+
+    fields.forEach((f, idx) => {
+      const tr = document.createElement("tr");
+      tr.className = "studio-preview-row";
+      tr.innerHTML = `
+        <td class="text-center font-mono text-subtle">${idx + 1}</td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-table" value="${escapeHtml(f.table || '')}" placeholder="Table..."></td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-column font-bold" value="${escapeHtml(f.column || '')}" placeholder="Column..."></td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-datatype" value="${escapeHtml(f.data_type || 'VARCHAR2(50)')}"></td>
+        <td><input type="text" class="input-clean input-inline-cell cell-name" value="${escapeHtml(f.field_name_vi || '')}" placeholder="Tên nghiệp vụ (Mô tả)..."></td>
+        <td><input type="text" class="input-clean input-inline-cell cell-notes" value="${escapeHtml(f.notes || '')}" placeholder="Ghi chú điều kiện..."></td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-srctable" value="${escapeHtml(f.source_table || '')}" placeholder="Bảng nguồn ODS..."></td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-srccol" value="${escapeHtml(f.source_column || '')}" placeholder="Cột nguồn..."></td>
+        <td><input type="text" class="input-clean input-inline-cell font-mono cell-rule" value="${escapeHtml(f.transformation_rule || '')}" placeholder="Công thức tính..."></td>
+        <td class="text-center">
+          <button class="btn-icon-sm text-rose btn-delete-row" title="Xóa dòng này"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      `;
+
+      tr.querySelector(".btn-delete-row").addEventListener("click", () => {
+        tr.remove();
+        const remaining = document.querySelectorAll(".studio-preview-row").length;
+        document.getElementById("studio-parsed-count").textContent = `${remaining} chỉ tiêu`;
+        if (remaining === 0) {
+          document.getElementById("btn-apply-parsed-mappings").disabled = true;
+          tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">Đã xóa hết các dòng xem trước.</td></tr>';
+        }
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  function readStudioPreviewRows() {
+    const rows = [];
+    document.querySelectorAll(".studio-preview-row").forEach(tr => {
+      const table = tr.querySelector(".cell-table")?.value.trim() || "";
+      const column = tr.querySelector(".cell-column")?.value.trim().toUpperCase() || "";
+      const data_type = tr.querySelector(".cell-datatype")?.value.trim() || "VARCHAR2(50)";
+      const field_name_vi = tr.querySelector(".cell-name")?.value.trim() || column;
+      const notes = tr.querySelector(".cell-notes")?.value.trim() || "";
+      const source_table = tr.querySelector(".cell-srctable")?.value.trim() || "";
+      const source_column = tr.querySelector(".cell-srccol")?.value.trim() || "";
+      const transformation_rule = tr.querySelector(".cell-rule")?.value.trim() || "";
+
+      if (column) {
+        rows.push({
+          table,
+          column,
+          data_type,
+          field_name_vi,
+          notes,
+          source_table,
+          source_column,
+          transformation_rule
+        });
+      }
+    });
+    return rows;
+  }
+
+  // ==========================================================
+  // LINEAGE & IMPACT ANALYSIS
+  // ==========================================================
   function initLineage() {
     const input = document.getElementById("lineage-search-field");
     const btn = document.getElementById("btn-do-lineage");
@@ -329,13 +669,13 @@ document.addEventListener("DOMContentLoaded", () => {
           const sysBadge = r.system_code === "CIC" ? '<span class="status-badge" style="background:#e0f2fe;color:#0369a1;">CIC</span>' : '<span class="status-badge" style="background:#d1fae5;color:#065f46;">TT35</span>';
 
           tr.innerHTML = `
-            <td><strong class="font-mono text-main">${r.source_table}</strong></td>
-            <td><span class="font-mono text-subtle">${r.source_column || '-'}</span></td>
+            <td><strong class="font-mono text-main">${escapeHtml(r.source_table)}</strong></td>
+            <td><span class="font-mono text-subtle">${escapeHtml(r.source_column || '-')}</span></td>
             <td>${sysBadge}</td>
-            <td><strong>${r.report_code}</strong></td>
-            <td><span class="field-code-badge">${r.field_code}</span></td>
-            <td><strong style="color:var(--text-main);">${r.field_name_vi || '-'}</strong></td>
-            <td><span class="font-mono text-subtle" style="font-size:11.5px;">${r.implemented_by || '-'}</span></td>
+            <td><strong>${escapeHtml(r.report_code)}</strong></td>
+            <td><span class="field-code-badge">${escapeHtml(r.field_code)}</span></td>
+            <td><strong style="color:var(--text-main);">${escapeHtml(r.field_name_vi || '-')}</strong></td>
+            <td><span class="font-mono text-subtle" style="font-size:11.5px;">${escapeHtml(r.implemented_by || '-')}</span></td>
           `;
           tbody.appendChild(tr);
         });
@@ -466,39 +806,39 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="detail-item-grid">
         <div class="detail-label-txt">Mã & Tên Chỉ tiêu:</div>
         <div class="detail-val-txt">
-          <span class="field-code-badge">${f.field_code}</span> 
-          <strong style="font-size:14px; margin-left:8px;">${f.field_name_vi || '-'}</strong>
+          <span class="field-code-badge">${escapeHtml(f.field_code)}</span> 
+          <strong style="font-size:14px; margin-left:8px;">${escapeHtml(f.field_name_vi || '-')}</strong>
         </div>
 
         <div class="detail-label-txt">Báo cáo & Bảng đích:</div>
         <div class="detail-val-txt">
-          Mẫu <strong>${f.report_code}</strong> | Bảng: <span class="font-mono text-primary">${f.target_table || '-'}</span>
+          Mẫu <strong>${escapeHtml(f.report_code)}</strong> | Bảng: <span class="font-mono text-primary">${escapeHtml(f.target_table || '-')}</span>
         </div>
 
         <div class="detail-label-txt">Kiểu dữ liệu:</div>
-        <div class="detail-val-txt font-mono">${f.data_type || 'VARCHAR2(50)'}</div>
+        <div class="detail-val-txt font-mono">${escapeHtml(f.data_type || 'VARCHAR2(50)')}</div>
 
         <div class="detail-label-txt">Nguồn Dữ liệu:</div>
         <div class="detail-val-txt">
-          ${f.source_table ? `<strong class="font-mono text-primary">${f.source_table}</strong> . <span class="font-mono">${f.source_column || '-'}</span>` : '<span class="unmapped-tag"><i class="fa-solid fa-triangle-exclamation"></i> Chưa map nguồn</span>'}
+          ${f.source_table ? `<strong class="font-mono text-primary">${escapeHtml(f.source_table)}</strong> . <span class="font-mono">${escapeHtml(f.source_column || '-')}</span>` : '<span class="unmapped-tag"><i class="fa-solid fa-triangle-exclamation"></i> Chưa map nguồn</span>'}
         </div>
 
         <div class="detail-label-txt">Quy tắc / Công thức:</div>
         <div class="detail-val-txt">
-          <div class="code-box-light">${f.transformation_rule || '(Gán trực tiếp hoặc chưa ghi nhận quy tắc)'}</div>
+          <div class="code-box-light">${escapeHtml(f.transformation_rule || '(Gán trực tiếp hoặc chưa ghi nhận quy tắc)')}</div>
         </div>
 
         <div class="detail-label-txt">Bảng mã quy đổi:</div>
-        <div class="detail-val-txt">${f.lookup_ref || 'Không sử dụng bảng mã'}</div>
+        <div class="detail-val-txt">${escapeHtml(f.lookup_ref || 'Không sử dụng bảng mã')}</div>
 
         <div class="detail-label-txt">Thủ tục thực thi:</div>
-        <div class="detail-val-txt font-mono">${f.implemented_by || 'Chưa ghi nhận'}</div>
+        <div class="detail-val-txt font-mono">${escapeHtml(f.implemented_by || 'Chưa ghi nhận')}</div>
 
         <div class="detail-label-txt">Căn cứ quy định:</div>
-        <div class="detail-val-txt">${f.regulatory_ref || '-'}</div>
+        <div class="detail-val-txt">${escapeHtml(f.regulatory_ref || '-')}</div>
 
         <div class="detail-label-txt">Ghi chú điều kiện:</div>
-        <div class="detail-val-txt">${f.notes || '-'}</div>
+        <div class="detail-val-txt">${escapeHtml(f.notes || '-')}</div>
       </div>
     `;
 
