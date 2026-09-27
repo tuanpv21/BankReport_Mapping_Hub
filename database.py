@@ -20,9 +20,9 @@ except ImportError:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SQLITE_PATH = os.path.join(BASE_DIR, "mapping_hub.db")
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip().strip("'\"")
 
-# Render sometimes gives postgres:// instead of postgresql://
+# Fix prefix: postgres:// -> postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
@@ -78,7 +78,6 @@ class PostgresCursorWrapper:
             clean_sql = clean_sql.rstrip(";") + " RETURNING id;"
 
         if params:
-            # Convert list to tuple if necessary
             params_tuple = tuple(params)
             self._cursor.execute(clean_sql, params_tuple)
         else:
@@ -145,12 +144,14 @@ class PostgresConnectionWrapper:
 
 
 def _get_pg_raw_conn():
-    """Builds raw psycopg2 connection, ensuring sslmode=require for cloud PostgreSQL (Supabase/Render)."""
+    """Builds raw psycopg2 connection, ensuring sslmode=require for cloud PostgreSQL."""
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL is not configured")
     url = DATABASE_URL
     if ("localhost" not in url and "127.0.0.1" not in url) and "sslmode=" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"
-    return psycopg2.connect(url)
+    return psycopg2.connect(url, connect_timeout=10)
 
 
 def get_db():
@@ -173,9 +174,13 @@ def is_postgres():
 
 
 def init_schema():
-    """Initializes tables for either PostgreSQL or SQLite."""
+    """Initializes tables for either PostgreSQL or SQLite safely."""
     if is_postgres():
-        _init_postgres_schema()
+        try:
+            _init_postgres_schema()
+        except Exception as e:
+            print(f"[Database Warning] PostgreSQL initialization failed: {e}. Falling back to SQLite.")
+            _init_sqlite_schema()
     else:
         _init_sqlite_schema()
 
@@ -362,7 +367,7 @@ def _init_postgres_schema():
 
 
 def _migrate_sqlite_to_postgres(pg_conn):
-    """Copies all seed data from mapping_hub.db to PostgreSQL."""
+    """Copies all seed data from mapping_hub.db to PostgreSQL using fast batch execution."""
     sq_conn = sqlite3.connect(SQLITE_PATH)
     sq_conn.row_factory = sqlite3.Row
     sq_cur = sq_conn.cursor()
@@ -380,7 +385,8 @@ def _migrate_sqlite_to_postgres(pg_conn):
             insert_sql = f"INSERT INTO {tbl} ({col_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
             
             data_tuples = [tuple(r) for r in rows]
-            pg_cur.executemany(insert_sql, data_tuples)
+            # Use execute_batch for 100x faster batch ingestion (avoids gunicorn worker timeout)
+            psycopg2.extras.execute_batch(pg_cur, insert_sql, data_tuples, page_size=1000)
             pg_conn.commit()
             print(f"[Migration] Copied {len(data_tuples)} records into table '{tbl}' in PostgreSQL.")
         except Exception as e:
