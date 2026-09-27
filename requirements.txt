@@ -4,3 +4,4 @@ openpyxl>=3.0.0
 python-docx>=0.8.11
 Werkzeug>=2.2.2
 Jinja2>=3.0.0
+psycopg2-binary>=2.9.5

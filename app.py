@@ -31,76 +31,13 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 HTML_PATH = os.path.join(os.path.dirname(__file__), "templates", "index.html")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+import database
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return database.get_db()
 
-# Ensure schema migrations
 def init_schema():
-    conn = get_db()
-    cur = conn.cursor()
-    # Reports columns
-    r_cols = [r[1] for r in cur.execute("PRAGMA table_info(reports)").fetchall()]
-    for col, col_t in [
-        ("procedure_code", "TEXT"),
-        ("template_file", "VARCHAR(200)"),
-        ("cycle", "VARCHAR(50)"),
-        ("unit", "VARCHAR(100)"),
-        ("has_matrix", "INTEGER DEFAULT 0")
-    ]:
-        if col not in r_cols:
-            cur.execute(f"ALTER TABLE reports ADD COLUMN {col} {col_t}")
-
-    # Mappings columns
-    m_cols = [r[1] for r in cur.execute("PRAGMA table_info(mappings)").fetchall()]
-    for col, col_t in [
-        ("calc_method", "VARCHAR(30)"),
-        ("row_id", "VARCHAR(50)"),
-        ("col_id", "VARCHAR(50)"),
-        ("gl_account", "VARCHAR(100)"),
-        ("balance_type", "VARCHAR(50)"),
-        ("formula_expr", "TEXT")
-    ]:
-        if col not in m_cols:
-            cur.execute(f"ALTER TABLE mappings ADD COLUMN {col} {col_t}")
-
-
-    # Users table
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username VARCHAR(50) UNIQUE NOT NULL,
-            password_hash VARCHAR(200) NOT NULL,
-            full_name VARCHAR(100) NOT NULL,
-            department VARCHAR(100) DEFAULT 'Kế toán & Quản lý Tài chính',
-            role VARCHAR(50) DEFAULT 'Chuyên viên',
-            avatar_color VARCHAR(20) DEFAULT '#1e3a8a',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
-
-    # Comments & Collaboration table
-    cur.execute('''
-        CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            username VARCHAR(50) NOT NULL,
-            full_name VARCHAR(100) NOT NULL,
-            department VARCHAR(100),
-            avatar_color VARCHAR(20) DEFAULT '#1e3a8a',
-            target_type VARCHAR(20) NOT NULL,
-            target_id VARCHAR(100) NOT NULL,
-            report_code VARCHAR(50),
-            field_code VARCHAR(100),
-            content TEXT NOT NULL,
-            tag VARCHAR(50) DEFAULT 'THAO_LUAN',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    ''')
-
-    conn.commit()
-    conn.close()
+    database.init_schema()
 
 def ensure_data_seeded():
     try:
