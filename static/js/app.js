@@ -113,6 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderMasterReportsList();
       populateExportDropdown();
       populateStudioDropdown();
+      loadMatrixReportsDropdown();
 
       if (allReports.length > 0 && !activeReport) {
         selectReport(allReports[0]);
@@ -637,6 +638,428 @@ insert into CIC_KU
       }
     });
     return rows;
+  }
+
+
+  // ==========================================================
+  // KHUNG MAU BIEU & MA TRAN MAPPING LOGIC
+  // ==========================================================
+  let matrixCells = [];
+  let currentMatrixReport = "A02211";
+  let currentMethodFilter = "ALL";
+
+  function initMatrix() {
+    // 1. Dashboard featured cards click
+    document.querySelectorAll(".featured-template-card").forEach(card => {
+      card.addEventListener("click", () => {
+        const rpt = card.getAttribute("data-report");
+        switchTab("tab-matrix");
+        const sel = document.getElementById("matrix-select-report");
+        if (sel) {
+          sel.value = rpt;
+          currentMatrixReport = rpt;
+          loadMatrixData(rpt);
+        }
+      });
+    });
+
+    const btnDashMatrix = document.getElementById("btn-dash-open-matrix");
+    if (btnDashMatrix) {
+      btnDashMatrix.addEventListener("click", () => switchTab("tab-matrix"));
+    }
+
+    // 2. Select report change
+    const sel = document.getElementById("matrix-select-report");
+    if (sel) {
+      sel.addEventListener("change", () => {
+        currentMatrixReport = sel.value;
+        loadMatrixData(sel.value);
+      });
+    }
+
+    // 3. Resync button
+    const btnResync = document.getElementById("btn-matrix-resync");
+    if (btnResync) {
+      btnResync.addEventListener("click", async () => {
+        btnResync.disabled = true;
+        btnResync.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang quét...</span>';
+        try {
+          const res = await fetch("/api/maubieu/sync", { method: "POST" });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Đã đồng bộ ${data.reports_imported} mẫu biểu (${data.cells_imported} chỉ tiêu)!`, "success");
+            loadReports();
+            loadMatrixData(currentMatrixReport);
+          } else {
+            showToast("Lỗi đồng bộ: " + (data.error || "Unknown"), "error");
+          }
+        } catch (e) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        } finally {
+          btnResync.disabled = false;
+          btnResync.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> <span>Quét Mẫu Gốc</span>';
+        }
+      });
+    }
+
+    // 4. Download template button
+    const btnDownload = document.getElementById("btn-download-matrix-template");
+    if (btnDownload) {
+      btnDownload.addEventListener("click", () => {
+        window.location.href = `/api/template/matrix/download?report=${currentMatrixReport}`;
+      });
+    }
+
+    // 5. Upload template button
+    const btnUploadTrig = document.getElementById("btn-upload-matrix-trigger");
+    const fileInput = document.getElementById("matrix-file-input");
+    if (btnUploadTrig && fileInput) {
+      btnUploadTrig.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", async () => {
+        if (fileInput.files.length === 0) return;
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        showToast(`Đang nạp file ${file.name}...`, "info");
+        try {
+          const res = await fetch("/api/template/matrix/upload", { method: "POST", body: formData });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Cập nhật thành công ${data.updated_cells} chỉ tiêu từ file Excel!`, "success");
+            loadMatrixData(currentMatrixReport);
+            loadStats();
+          } else {
+            showToast("Lỗi nạp file: " + (data.error || "Unknown"), "error");
+          }
+        } catch (e) {
+          showToast("Lỗi kết nối máy chủ", "error");
+        } finally {
+          fileInput.value = "";
+        }
+      });
+    }
+
+    // 6. View generated PL/SQL script
+    const btnViewScript = document.getElementById("btn-view-matrix-script");
+    if (btnViewScript) {
+      btnViewScript.addEventListener("click", async () => {
+        try {
+          const res = await fetch(`/api/reports/${currentMatrixReport}/script`);
+          const data = await res.json();
+          const modal = document.getElementById("modal-matrix-script");
+          const textarea = document.getElementById("modal-script-textarea");
+          const title = document.getElementById("modal-script-title");
+
+          if (title) title.textContent = `Mã Nguồn Procedure & Script cho Mẫu [${currentMatrixReport}]`;
+          if (textarea) {
+            const script = data.stored_procedure_code || data.generated_script || "-- Chưa có mã nguồn script cho mẫu này";
+            textarea.value = script;
+          }
+          if (modal) modal.classList.add("active");
+        } catch (e) {
+          showToast("Lỗi lấy mã script", "error");
+        }
+      });
+    }
+
+    const btnCopyScript = document.getElementById("btn-copy-matrix-script");
+    if (btnCopyScript) {
+      btnCopyScript.addEventListener("click", () => {
+        const textarea = document.getElementById("modal-script-textarea");
+        if (textarea && textarea.value) {
+          navigator.clipboard.writeText(textarea.value);
+          showToast("Đã sao chép mã script vào bộ nhớ tạm!", "success");
+        }
+      });
+    }
+
+    // 7. Method Filter Pills
+    document.querySelectorAll("#matrix-method-filters .pill-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#matrix-method-filters .pill-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentMethodFilter = btn.getAttribute("data-method");
+        renderMatrixTable();
+      });
+    });
+
+    // 8. Search input
+    const searchInput = document.getElementById("matrix-cell-search");
+    if (searchInput) {
+      searchInput.addEventListener("input", renderMatrixTable);
+    }
+
+    // 9. Matrix Cell Edit Form Logic
+    const calcMethodSelect = document.getElementById("matrix-form-calc-method");
+    if (calcMethodSelect) {
+      calcMethodSelect.addEventListener("change", () => {
+        updateCalcMethodFormBlocks(calcMethodSelect.value);
+      });
+    }
+
+    const btnSaveCell = document.getElementById("btn-save-matrix-cell");
+    if (btnSaveCell) {
+      btnSaveCell.addEventListener("click", saveMatrixCellForm);
+    }
+  }
+
+  function updateCalcMethodFormBlocks(method) {
+    const glBlock = document.getElementById("block-calc-gl");
+    const coreBlock = document.getElementById("block-calc-core");
+    const formulaBlock = document.getElementById("block-calc-formula");
+    const procBlock = document.getElementById("block-calc-proc");
+
+    if (glBlock) glBlock.style.display = method === "GL_CONFIG" ? "block" : "none";
+    if (coreBlock) coreBlock.style.display = method === "CORE_TABLE" ? "block" : "none";
+    if (formulaBlock) formulaBlock.style.display = method === "FORMULA" ? "block" : "none";
+    if (procBlock) procBlock.style.display = method === "PROCEDURE" ? "block" : "none";
+  }
+
+  function loadMatrixReportsDropdown() {
+    const sel = document.getElementById("matrix-select-report");
+    if (!sel) return;
+
+    const matrixReports = allReports.filter(r => r.has_matrix == 1);
+    if (matrixReports.length > 0) {
+      const currentVal = sel.value;
+      sel.innerHTML = "";
+      matrixReports.forEach(r => {
+        const opt = document.createElement("option");
+        opt.value = r.report_code;
+        opt.textContent = `[${r.system_code}] ${r.report_code} - ${r.report_name} (${r.field_count} ô)`;
+        sel.appendChild(opt);
+      });
+      if (currentVal && Array.from(sel.options).some(o => o.value === currentVal)) {
+        sel.value = currentVal;
+      } else {
+        sel.value = matrixReports[0].report_code;
+      }
+    }
+
+    currentMatrixReport = sel.value || "A02211";
+    loadMatrixData(currentMatrixReport);
+  }
+
+  async function loadMatrixData(reportCode) {
+    if (!reportCode) return;
+    const tbody = document.getElementById("matrix-cells-tbody");
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5"><i class="fa-solid fa-spinner fa-spin text-primary"></i> Đang tải dữ liệu ma trận mẫu biểu...</td></tr>';
+    }
+
+    try {
+      const res = await fetch(`/api/reports/${reportCode}/matrix`);
+      const data = await res.json();
+      if (!data.report) return;
+
+      const rpt = data.report;
+      matrixCells = data.cells || [];
+
+      // Update banner meta
+      const badge = document.getElementById("matrix-report-badge");
+      const title = document.getElementById("matrix-report-title");
+      const cycle = document.getElementById("matrix-meta-cycle");
+      const unit = document.getElementById("matrix-meta-unit");
+      const tbl = document.getElementById("matrix-meta-table");
+      const proc = document.getElementById("matrix-meta-proc");
+
+      if (badge) badge.textContent = `${rpt.system_code} - ${rpt.report_code}`;
+      if (title) title.textContent = rpt.report_name;
+      if (cycle) cycle.textContent = rpt.cycle || "(Theo quy định)";
+      if (unit) unit.textContent = rpt.unit || "VND / Triệu VND";
+      if (tbl) tbl.textContent = rpt.target_table || `RPTB_${rpt.report_code}`;
+      if (proc) proc.textContent = rpt.procedure_name || `pr_${rpt.report_code}`;
+
+      // Update counts
+      let glCount = 0, coreCount = 0, formulaCount = 0, procCount = 0;
+      matrixCells.forEach(c => {
+        if (c.calc_method === "GL_CONFIG") glCount++;
+        else if (c.calc_method === "CORE_TABLE") coreCount++;
+        else if (c.calc_method === "FORMULA") formulaCount++;
+        else if (c.calc_method === "PROCEDURE") procCount++;
+      });
+
+      const elAll = document.getElementById("count-all-cells");
+      const elGl = document.getElementById("count-gl-cells");
+      const elCore = document.getElementById("count-core-cells");
+      const elFormula = document.getElementById("count-formula-cells");
+      const elProc = document.getElementById("count-proc-cells");
+
+      if (elAll) elAll.textContent = matrixCells.length;
+      if (elGl) elGl.textContent = glCount;
+      if (elCore) elCore.textContent = coreCount;
+      if (elFormula) elFormula.textContent = formulaCount;
+      if (elProc) elProc.textContent = procCount;
+
+      renderMatrixTable();
+    } catch (e) {
+      console.error("Error loading matrix data:", e);
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-rose">Lỗi khi tải dữ liệu ma trận từ máy chủ.</td></tr>';
+      }
+    }
+  }
+
+  function renderMatrixTable() {
+    const tbody = document.getElementById("matrix-cells-tbody");
+    if (!tbody) return;
+
+    const searchVal = (document.getElementById("matrix-cell-search")?.value || "").toLowerCase().trim();
+
+    const filtered = matrixCells.filter(c => {
+      const matchMethod = currentMethodFilter === "ALL" || c.calc_method === currentMethodFilter;
+      const matchSearch = !searchVal ||
+        (c.row_id && c.row_id.toLowerCase().includes(searchVal)) ||
+        (c.field_name_vi && c.field_name_vi.toLowerCase().includes(searchVal)) ||
+        (c.gl_account && c.gl_account.toLowerCase().includes(searchVal)) ||
+        (c.target_column && c.target_column.toLowerCase().includes(searchVal)) ||
+        (c.transformation_rule && c.transformation_rule.toLowerCase().includes(searchVal));
+      return matchMethod && matchSearch;
+    });
+
+    tbody.innerHTML = "";
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-muted">Không tìm thấy ô chỉ tiêu nào phù hợp với bộ lọc.</td></tr>';
+      return;
+    }
+
+    const displayLimit = 250;
+    const itemsToRender = filtered.slice(0, displayLimit);
+
+    itemsToRender.forEach((c, idx) => {
+      const tr = document.createElement("tr");
+
+      let methodBadge = "";
+      if (c.calc_method === "GL_CONFIG") {
+        methodBadge = '<span class="badge-method-gl"><i class="fa-solid fa-calculator"></i> GL_CONFIG</span>';
+      } else if (c.calc_method === "CORE_TABLE") {
+        methodBadge = '<span class="badge-method-core"><i class="fa-solid fa-database"></i> CORE_TABLE</span>';
+      } else if (c.calc_method === "FORMULA") {
+        methodBadge = '<span class="badge-method-formula"><i class="fa-solid fa-square-root-variable"></i> FORMULA</span>';
+      } else {
+        methodBadge = '<span class="badge-method-proc"><i class="fa-solid fa-code"></i> PROCEDURE</span>';
+      }
+
+      let detailVal = "";
+      if (c.calc_method === "GL_CONFIG") {
+        detailVal = `<strong class="font-mono text-primary">TK ${escapeHtml(c.gl_account || '-') }</strong> <span class="badge badge-draft" style="font-size:10px;">${escapeHtml(c.balance_type || 'NET_BAL')}</span>`;
+      } else if (c.calc_method === "FORMULA") {
+        detailVal = `<span class="text-amber font-mono" style="font-size:12px;">${escapeHtml(c.formula_expr || c.transformation_rule || '-')}</span>`;
+      } else if (c.calc_method === "CORE_TABLE") {
+        detailVal = `<span class="font-mono text-emerald">${escapeHtml(c.source_table)}.${escapeHtml(c.source_column)}</span>`;
+      } else {
+        detailVal = `<span class="font-mono text-subtle">${escapeHtml(c.implemented_by || 'Procedure')}</span>`;
+      }
+
+      tr.innerHTML = `
+        <td class="text-center font-mono text-subtle">${idx + 1}</td>
+        <td><strong class="font-mono text-primary">${escapeHtml(c.row_id || '-')}</strong></td>
+        <td><span class="font-mono font-bold">${escapeHtml(c.target_column || c.field_code || '-')}</span></td>
+        <td>
+          <div style="font-weight:600; font-size:13px; color:var(--text-main);">${escapeHtml(c.field_name_vi || '-')}</div>
+          ${c.notes ? `<div class="text-subtle" style="font-size:11px; margin-top:2px;">${escapeHtml(truncate(c.notes, 60))}</div>` : ''}
+        </td>
+        <td>${methodBadge}</td>
+        <td>${detailVal}</td>
+        <td class="font-mono" style="font-size:12px;">${escapeHtml(c.source_table ? `${c.source_table}.${c.source_column}` : (c.calc_method === 'GL_CONFIG' ? 't1080_tb_gl_bal_quy_doi' : '-'))}</td>
+        <td style="font-size:12px;"><div class="code-box-light" style="padding:4px 8px; font-size:11px;">${escapeHtml(c.transformation_rule || c.formula_expr || 'Cấu hình số dư')}</div></td>
+        <td class="text-center">
+          <button class="btn-icon-sm text-primary btn-edit-cell" title="Chỉnh sửa ô chỉ tiêu này"><i class="fa-solid fa-pen-to-square"></i></button>
+        </td>
+      `;
+
+      tr.querySelector(".btn-edit-cell").addEventListener("click", () => {
+        openMatrixCellModal(c);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    if (filtered.length > displayLimit) {
+      const noticeTr = document.createElement("tr");
+      noticeTr.innerHTML = `<td colspan="9" class="text-center py-3 text-subtle" style="font-size:12px; background:#fafbfc;">
+        Đang hiển thị ${displayLimit} / ${filtered.length} ô chỉ tiêu. Sử dụng ô tìm kiếm để lọc chi tiết từng tài khoản hoặc công thức.
+      </td>`;
+      tbody.appendChild(noticeTr);
+    }
+  }
+
+  function openMatrixCellModal(c) {
+    const modal = document.getElementById("modal-matrix-cell-edit");
+    if (!modal) return;
+
+    document.getElementById("matrix-form-id").value = c.id;
+    document.getElementById("matrix-form-row-id").value = c.row_id || "";
+    document.getElementById("matrix-form-col-id").value = c.col_id || "";
+    document.getElementById("matrix-form-target-col").value = c.target_column || c.field_code || "";
+    document.getElementById("matrix-form-name").value = c.field_name_vi || "";
+    document.getElementById("matrix-form-calc-method").value = c.calc_method || "GL_CONFIG";
+
+    document.getElementById("matrix-form-gl-acct").value = c.gl_account || "";
+    document.getElementById("matrix-form-balance-type").value = c.balance_type || "DNCK";
+    document.getElementById("matrix-form-gl-table").value = c.source_table || "t1080_tb_gl_bal_quy_doi";
+    document.getElementById("matrix-form-gl-col").value = c.source_column || "";
+
+    document.getElementById("matrix-form-core-table").value = c.source_table || "";
+    document.getElementById("matrix-form-core-col").value = c.source_column || "";
+    document.getElementById("matrix-form-core-where").value = c.transformation_rule || "";
+
+    document.getElementById("matrix-form-formula").value = c.formula_expr || c.transformation_rule || "";
+    document.getElementById("matrix-form-proc-name").value = c.implemented_by || "";
+    document.getElementById("matrix-form-notes").value = c.notes || "";
+
+    updateCalcMethodFormBlocks(c.calc_method || "GL_CONFIG");
+    modal.classList.add("active");
+  }
+
+  async function saveMatrixCellForm() {
+    const id = document.getElementById("matrix-form-id").value;
+    if (!id) return;
+
+    const calcMethod = document.getElementById("matrix-form-calc-method").value;
+    const payload = {
+      field_name_vi: document.getElementById("matrix-form-name").value.trim(),
+      calc_method: calcMethod,
+      notes: document.getElementById("matrix-form-notes").value.trim()
+    };
+
+    if (calcMethod === "GL_CONFIG") {
+      payload.gl_account = document.getElementById("matrix-form-gl-acct").value.trim();
+      payload.balance_type = document.getElementById("matrix-form-balance-type").value;
+      payload.source_table = document.getElementById("matrix-form-gl-table").value.trim();
+      payload.source_column = document.getElementById("matrix-form-gl-col").value.trim();
+      payload.transformation_rule = `GL_CODE LIKE '${payload.gl_account}%' [${payload.balance_type}]`;
+    } else if (calcMethod === "CORE_TABLE") {
+      payload.source_table = document.getElementById("matrix-form-core-table").value.trim();
+      payload.source_column = document.getElementById("matrix-form-core-col").value.trim();
+      payload.transformation_rule = document.getElementById("matrix-form-core-where").value.trim();
+    } else if (calcMethod === "FORMULA") {
+      payload.formula_expr = document.getElementById("matrix-form-formula").value.trim();
+      payload.transformation_rule = payload.formula_expr;
+    } else if (calcMethod === "PROCEDURE") {
+      payload.implemented_by = document.getElementById("matrix-form-proc-name").value.trim();
+      payload.transformation_rule = `Xử lý trong thủ tục ${payload.implemented_by}`;
+    }
+
+    try {
+      const res = await fetch(`/api/mappings/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Đã cập nhật cấu hình chỉ tiêu ma trận thành công!", "success");
+        document.getElementById("modal-matrix-cell-edit").classList.remove("active");
+        loadMatrixData(currentMatrixReport);
+      } else {
+        showToast("Lỗi khi lưu: " + (data.error || "Unknown"), "error");
+      }
+    } catch (e) {
+      showToast("Lỗi kết nối máy chủ", "error");
+    }
   }
 
   // ==========================================================

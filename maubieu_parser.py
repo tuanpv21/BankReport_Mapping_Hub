@@ -12,6 +12,7 @@ import sqlite3
 
 GL_DIR = r"E:\1080 Public Bank\TT35\CIC\GL"
 MAUBIEU_CONFIG_DIR = os.path.join(GL_DIR, "Maubieu_Config")
+LOCAL_TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates_data")
 DB_PATH = os.path.join(os.path.dirname(__file__), "mapping_hub.db")
 
 def get_db():
@@ -336,8 +337,9 @@ def parse_maubieu_excel(file_path):
 
 def import_all_maubieu_templates():
     """Scans and imports all Maubieu_Config files into mapping_hub.db."""
-    if not os.path.exists(MAUBIEU_CONFIG_DIR):
-        return {"success": False, "error": f"Folder {MAUBIEU_CONFIG_DIR} not found"}
+    config_dir = MAUBIEU_CONFIG_DIR if os.path.exists(MAUBIEU_CONFIG_DIR) else LOCAL_TEMPLATES_DIR
+    if not os.path.exists(config_dir):
+        return {"success": False, "error": f"Folder {config_dir} not found"}
 
     target_files = ["A02211.xlsx", "A02224.xlsx", "G01480.xlsx", "G04224.xlsx", "G04235.xlsx"]
     conn = get_db()
@@ -347,9 +349,14 @@ def import_all_maubieu_templates():
     total_imported_cells = 0
 
     for fn in target_files:
-        fp = os.path.join(MAUBIEU_CONFIG_DIR, fn)
+        fp = os.path.join(config_dir, fn)
         if not os.path.exists(fp):
-            continue
+            # check alternative directory
+            alt_fp = os.path.join(LOCAL_TEMPLATES_DIR, fn)
+            if os.path.exists(alt_fp):
+                fp = alt_fp
+            else:
+                continue
 
         data = parse_maubieu_excel(fp)
         if not data:

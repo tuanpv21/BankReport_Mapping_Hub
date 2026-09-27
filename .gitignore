@@ -4,5 +4,6 @@ uploads/*
 !uploads/.gitkeep
 test_write.txt
 *.xlsx
+!templates_data/*.xlsx
 *.docx
 !static/

@@ -66,7 +66,28 @@ def init_schema():
     conn.commit()
     conn.close()
 
+def ensure_data_seeded():
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cnt = cur.execute("SELECT COUNT(*) FROM mappings").fetchone()[0]
+        has_matrix_cols = [r[1] for r in cur.execute("PRAGMA table_info(reports)").fetchall()]
+        matrix_cnt = 0
+        if "has_matrix" in has_matrix_cols:
+            matrix_cnt = cur.execute("SELECT COUNT(*) FROM reports WHERE has_matrix = 1").fetchone()[0]
+        conn.close()
+
+        if cnt == 0:
+            print("[Startup] Initializing base report mappings...")
+            parser.run_full_sync()
+        if matrix_cnt == 0:
+            print("[Startup] Seeding sample matrix templates (A02211, G04224, etc.)...")
+            maubieu_parser.import_all_maubieu_templates()
+    except Exception as e:
+        print(f"[Startup Warning] Seeding check: {e}")
+
 init_schema()
+ensure_data_seeded()
 
 @app.route("/")
 def index():
@@ -111,6 +132,7 @@ def get_reports():
     sql = """
         SELECT r.report_code, r.system_code, r.report_name, r.target_table, 
                r.procedure_name, r.procedure_code, r.regulation_ref, r.description,
+               coalesce(r.has_matrix, 0) as has_matrix, r.cycle, r.unit,
                COUNT(m.id) as field_count
         FROM reports r
         LEFT JOIN mappings m ON r.report_code = m.report_code AND r.system_code = m.system_code
@@ -121,7 +143,7 @@ def get_reports():
         sql += " AND r.system_code = ?"
         params.append(system)
     
-    sql += " GROUP BY r.report_code, r.system_code ORDER BY r.system_code, r.report_code"
+    sql += " GROUP BY r.report_code, r.system_code ORDER BY r.has_matrix DESC, r.system_code, r.report_code"
     rows = cur.execute(sql, params).fetchall()
     conn.close()
     

@@ -206,7 +206,193 @@
               </div>
             </div>
           </div>
+        
+          <!-- Featured Matrix Templates Section -->
+          <div class="card-clean mb-4">
+            <div class="card-clean-header flex-between">
+              <div class="d-flex align-center gap-3">
+                <div class="io-icon bg-emerald-subtle text-emerald"><i class="fa-solid fa-table-cells"></i></div>
+                <div>
+                  <h3 class="m-0">Mẫu Biểu Báo Cáo Sẵn Có (Khung Ma Trận &amp; Công Thức Đã Nạp)</h3>
+                  <span class="text-subtle" style="font-size:12px;">Đã nạp sẵn từ thư mục Maubieu_Config (A02211, G04224, G01480, A02224, G04235). Nhấp vào mẫu biểu để xem ma trận hoặc tải template Excel.</span>
+                </div>
+              </div>
+              <button id="btn-dash-open-matrix" class="btn btn-emerald-solid">
+                <i class="fa-solid fa-table-cells"></i>
+                <span>Xem Khung Mẫu Biểu</span>
+              </button>
+            </div>
+            <div class="p-3">
+              <div class="featured-templates-grid">
+                <div class="featured-template-card" data-report="A02211">
+                  <div class="ft-badge badge-tt35">A02211 (Ngày)</div>
+                  <h4>Bảng cân đối Tài khoản Kế toán</h4>
+                  <p class="ft-desc">5.484 chỉ tiêu ma trận: Tiền mặt (1011), Tiền gửi NHNN, Cho vay... Cột: DNDK, DCDK, PSN, PSC, DNCK, DCCK (VND, Ngoại tệ quy đổi, Tổng cộng).</p>
+                  <div class="ft-footer">
+                    <span class="ft-pill"><i class="fa-solid fa-calculator text-emerald"></i> GL Config</span>
+                    <a href="/api/template/matrix/download?report=A02211" class="btn-link-action" title="Tải template Excel" onclick="event.stopPropagation();"><i class="fa-solid fa-file-excel text-emerald"></i> Tải Template</a>
+                  </div>
+                </div>
+
+                <div class="featured-template-card" data-report="G04224">
+                  <div class="ft-badge badge-tt35">G04224 (Tháng)</div>
+                  <h4>Báo cáo Vốn Tự Có của Ngân hàng</h4>
+                  <p class="ft-desc">Vốn cấp 1 (A1 - A2...), Vốn cấp 2, Tổng vốn tự có, các khoản giảm trừ và tỷ lệ an toàn vốn theo Thông tư 41 & Thông tư 35.</p>
+                  <div class="ft-footer">
+                    <span class="ft-pill"><i class="fa-solid fa-square-root-variable text-amber"></i> Công thức & GL</span>
+                    <a href="/api/template/matrix/download?report=G04224" class="btn-link-action" title="Tải template Excel" onclick="event.stopPropagation();"><i class="fa-solid fa-file-excel text-emerald"></i> Tải Template</a>
+                  </div>
+                </div>
+
+                <div class="featured-template-card" data-report="G01480">
+                  <div class="ft-badge badge-tt35">G01480 (2 kỳ/năm)</div>
+                  <h4>Giá trị Thực Vốn Điều lệ, Vốn Được Cấp</h4>
+                  <p class="ft-desc">Số dư kỳ này, Số tiền tăng/giảm so với kỳ trước, Tỷ lệ thay đổi % theo quy định an toàn vốn của NHNN.</p>
+                  <div class="ft-footer">
+                    <span class="ft-pill"><i class="fa-solid fa-calculator text-blue"></i> GL & Công thức</span>
+                    <a href="/api/template/matrix/download?report=G01480" class="btn-link-action" title="Tải template Excel" onclick="event.stopPropagation();"><i class="fa-solid fa-file-excel text-emerald"></i> Tải Template</a>
+                  </div>
+                </div>
+
+                <div class="featured-template-card" data-report="A02224">
+                  <div class="ft-badge badge-tt35">A02224 (Tháng)</div>
+                  <h4>Thuyết minh Chi tiết Tài khoản Kế toán</h4>
+                  <p class="ft-desc">8.484 chỉ tiêu: Phân loại kỳ hạn, đối tượng khách hàng, loại tiền tệ và thuyết minh số dư chi tiết theo quy định NHNN.</p>
+                  <div class="ft-footer">
+                    <span class="ft-pill"><i class="fa-solid fa-calculator text-emerald"></i> GL Config</span>
+                    <a href="/api/template/matrix/download?report=A02224" class="btn-link-action" title="Tải template Excel" onclick="event.stopPropagation();"><i class="fa-solid fa-file-excel text-emerald"></i> Tải Template</a>
+                  </div>
+                </div>
+
+                <div class="featured-template-card" data-report="G04235">
+                  <div class="ft-badge badge-tt35">G04235 (Quý)</div>
+                  <h4>Báo cáo Vốn Tự Có Hợp Nhất</h4>
+                  <p class="ft-desc">Tính toán vốn tự có hợp nhất gồm ngân hàng mẹ và các công ty con/liên kết, các khoản giảm trừ hợp nhất theo quy định.</p>
+                  <div class="ft-footer">
+                    <span class="ft-pill"><i class="fa-solid fa-square-root-variable text-amber"></i> Hợp nhất & Công thức</span>
+                    <a href="/api/template/matrix/download?report=G04235" class="btn-link-action" title="Tải template Excel" onclick="event.stopPropagation();"><i class="fa-solid fa-file-excel text-emerald"></i> Tải Template</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
+
+
+        <!-- ========================================== -->
+        <!-- VIEW 1.5: MATRIX TEMPLATES & CONFIG        -->
+        <!-- ========================================== -->
+        <section id="tab-matrix" class="tab-view">
+          <div class="section-title-wrap">
+            <h1>Khung Mẫu Biểu &amp; Ma Trận Tính Toán Báo Cáo</h1>
+            <p>Quản lý các mẫu biểu báo cáo dạng ma trận ngang - dọc (như A02211 Cân đối TKKT, G04224 Vốn tự có, G01480...). Hỗ trợ cấu hình số dư GL, bảng Core, công thức hoặc xử lý trong Procedure.</p>
+          </div>
+
+          <!-- Top Control Card -->
+          <div class="card-clean mb-4">
+            <div class="card-clean-header flex-between">
+              <div class="d-flex align-center gap-3">
+                <div class="io-icon bg-emerald-subtle text-emerald"><i class="fa-solid fa-table-cells"></i></div>
+                <div>
+                  <h3 class="m-0">Chọn Mẫu Biểu Báo Cáo Ma Trận</h3>
+                  <span class="text-subtle" style="font-size:12px;">Xem chi tiết các ô chỉ tiêu, công thức tính toán và số hiệu tài khoản kế toán.</span>
+                </div>
+              </div>
+              <div class="d-flex align-center gap-2">
+                <select id="matrix-select-report" class="select-clean font-bold" style="min-width: 320px;">
+                  <option value="A02211">[TT35] A02211 - BẢNG CÂN ĐỐI TÀI KHOẢN KẾ TOÁN (Ngày)</option>
+                  <option value="G04224">[TT35] G04224 - BÁO CÁO VỐN TỰ CÓ CỦA NGÂN HÀNG (Tháng)</option>
+                  <option value="G01480">[TT35] G01480 - BÁO CÁO GIÁ TRỊ THỰC CỦA VỐN ĐIỀU LỆ (2 kỳ/năm)</option>
+                  <option value="A02224">[TT35] A02224 - THUYẾT MINH CHI TIẾT TÀI KHOẢN KẾ TOÁN (Tháng)</option>
+                  <option value="G04235">[TT35] G04235 - BÁO CÁO VỐN TỰ CÓ HỢP NHẤT (Quý)</option>
+                </select>
+                <button id="btn-matrix-resync" class="btn btn-outline-clean" title="Quét lại từ file gốc Excel">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                  <span>Quét Mẫu Gốc</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-3">
+              <div class="matrix-banner-meta flex-between">
+                <div class="meta-left">
+                  <span class="badge badge-tt35" id="matrix-report-badge">TT35 - A02211</span>
+                  <h2 id="matrix-report-title" class="m-0" style="font-size:18px; display:inline-block; margin-left:10px;">BẢNG CÂN ĐỐI TÀI KHOẢN KẾ TOÁN (Ngày)</h2>
+                  <div class="matrix-meta-details mt-2">
+                    <span><i class="fa-solid fa-calendar-days text-primary"></i> Kỳ: <strong id="matrix-meta-cycle">(Ngày)</strong></span>
+                    <span><i class="fa-solid fa-coins text-amber"></i> Đơn vị: <strong id="matrix-meta-unit">Đồng Việt Nam (VND)</strong></span>
+                    <span><i class="fa-solid fa-database text-emerald"></i> Bảng đích: <strong id="matrix-meta-table" class="font-mono">RPTB_A02211</strong></span>
+                    <span><i class="fa-solid fa-code text-blue"></i> Thủ tục: <strong id="matrix-meta-proc" class="font-mono">pr_A02211</strong></span>
+                  </div>
+                </div>
+                <div class="meta-right d-flex gap-2">
+                  <button id="btn-download-matrix-template" class="btn btn-emerald-solid">
+                    <i class="fa-solid fa-file-arrow-down"></i>
+                    <span>Tải Template Excel Điền Offline</span>
+                  </button>
+                  <button id="btn-upload-matrix-trigger" class="btn btn-primary-gradient">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                    <span>Nạp File Đã Điền</span>
+                  </button>
+                  <input type="file" id="matrix-file-input" accept=".xlsx" style="display:none">
+                  <button id="btn-view-matrix-script" class="btn btn-amber-solid" title="Xem mã PL/SQL sinh tự động">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Xem Script PL/SQL</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filter & Statistics Bar -->
+          <div class="card-clean mb-4 p-3">
+            <div class="flex-between">
+              <div class="d-flex align-center gap-3">
+                <span class="text-subtle" style="font-weight:600; font-size:13px;">Lọc theo phương pháp tính:</span>
+                <div class="filter-pills-group" id="matrix-method-filters">
+                  <button class="pill-btn active" data-method="ALL">Tất cả (<span id="count-all-cells">0</span>)</button>
+                  <button class="pill-btn" data-method="GL_CONFIG"><span class="pill-dot bg-emerald"></span> Số dư GL (<span id="count-gl-cells">0</span>)</button>
+                  <button class="pill-btn" data-method="CORE_TABLE"><span class="pill-dot bg-blue"></span> Bảng Core/ODS (<span id="count-core-cells">0</span>)</button>
+                  <button class="pill-btn" data-method="FORMULA"><span class="pill-dot bg-amber"></span> Công thức (<span id="count-formula-cells">0</span>)</button>
+                  <button class="pill-btn" data-method="PROCEDURE"><span class="pill-dot bg-purple"></span> Trong Procedure (<span id="count-proc-cells">0</span>)</button>
+                </div>
+              </div>
+              <div class="detail-search-box" style="width: 320px;">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="matrix-cell-search" placeholder="Tìm theo mã TK, tên chỉ tiêu, mã dòng...">
+              </div>
+            </div>
+          </div>
+
+          <!-- Matrix Grid Table -->
+          <div class="card-clean">
+            <div class="table-scroll-wrap" style="max-height: 580px;">
+              <table class="modern-table">
+                <thead>
+                  <tr>
+                    <th width="45" class="text-center">STT</th>
+                    <th width="90">Mã dòng</th>
+                    <th width="110">Cột đích</th>
+                    <th width="240">Chỉ tiêu / Tên nghiệp vụ</th>
+                    <th width="140">Phương pháp tính</th>
+                    <th width="150">Tài khoản GL / Cột</th>
+                    <th width="180">Bảng / Nguồn DL</th>
+                    <th>Chi tiết Công thức / Logic quy tắc</th>
+                    <th width="70" class="text-center">Sửa</th>
+                  </tr>
+                </thead>
+                <tbody id="matrix-cells-tbody">
+                  <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">Đang tải dữ liệu ma trận mẫu biểu...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+
+
 
 
         <!-- ========================================== -->
@@ -760,7 +946,32 @@
     </div>
   </div>
 
-  <div id="toast-hub" class="toast-hub"></div>
+  
+  <!-- MODAL: VIEW GENERATED PL/SQL SCRIPT -->
+  <div class="modal-backdrop" id="modal-matrix-script">
+    <div class="modal-card modal-card-lg" style="max-width: 800px;">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-badge-sys">PL/SQL</span>
+          <h3 id="modal-script-title">Mã Nguồn Procedure / Script Sinh Tự Động</h3>
+        </div>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="text-subtle mb-2" style="font-size:12px;">Dưới đây là mã PL/SQL MERGE / UPDATE được tự động sinh dựa trên cấu hình số dư GL và công thức tính:</div>
+        <textarea id="modal-script-textarea" class="textarea-clean w-100 font-mono" rows="16" readonly></textarea>
+      </div>
+      <div class="modal-footer flex-between">
+        <button id="btn-copy-matrix-script" class="btn btn-outline-clean">
+          <i class="fa-solid fa-copy"></i>
+          <span>Sao chép mã</span>
+        </button>
+        <button class="btn btn-primary-gradient btn-close-modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+<div id="toast-hub" class="toast-hub"></div>
 
   <script src="/static/js/app.js"></script>
 </body>
