@@ -452,6 +452,8 @@ insert into CIC_KU
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sql: sqlText,
+              sql_text: sqlText,
+              procedure_code: sqlText,
               system_code: sysCode,
               target_table: rptCode ? (sysCode === "CIC" ? `CIC_${rptCode}` : `RPTB_${rptCode}`) : ""
             })
@@ -460,6 +462,9 @@ insert into CIC_KU
           const data = await res.json();
           if (data.success && data.fields) {
             currentParsedFields = data.fields;
+            if (data.procedure_name && procNameInput && !procNameInput.value.trim()) {
+              procNameInput.value = data.procedure_name;
+            }
             renderStudioPreview(data.fields);
             btnApply.disabled = (data.fields.length === 0);
             document.getElementById("studio-parsed-count").textContent = `${data.fields.length} chỉ tiêu`;

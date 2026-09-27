@@ -464,7 +464,7 @@ def delete_mapping(id):
 @app.route("/api/procedure/parse", methods=["POST"])
 def parse_procedure():
     data = request.get_json(silent=True) or {}
-    sql_text = data.get("sql_text", "")
+    sql_text = data.get("sql_text") or data.get("sql") or data.get("procedure_code") or ""
     target_table = data.get("target_table", "")
     system_code = data.get("system_code", "")
 

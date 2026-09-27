@@ -35,6 +35,13 @@ BANK_COLUMN_DICT = {
     "KY_TU_CHU": ("Ký tự chữ lọc GL", "VARCHAR2(30)"),
     "CAL_STEP1": ("Công thức cấu hình GL", "VARCHAR2(250)"),
     "GIA_TRI": ("Giá trị tổng hợp", "NUMBER(18,2)"),
+    "EUR_QUY_DOI": ("Số dư EUR quy đổi (VND)", "NUMBER(18,2)"),
+    "USD_QUY_DOI": ("Số dư USD quy đổi (VND)", "NUMBER(18,2)"),
+    "USD": ("Số dư USD quy đổi (VND)", "NUMBER(18,2)"),
+    "EUR": ("Số dư EUR quy đổi (VND)", "NUMBER(18,2)"),
+    "NGTE_KHAC_QUY_DOI": ("Số dư Ngoại tệ khác quy đổi (VND)", "NUMBER(18,2)"),
+    "TONG": ("Tổng cộng các loại tiền tệ", "NUMBER(18,2)"),
+    "TONG_CONG": ("Tổng cộng các loại tiền tệ", "NUMBER(18,2)"),
     "MA_KH": ("Mã khách hàng", "VARCHAR2(20)"),
     "TEN_KH": ("Tên khách hàng", "VARCHAR2(250)"),
     "NGAY_MO": ("Ngày mở tài khoản/HĐ", "VARCHAR2(8)"),
@@ -54,9 +61,9 @@ def parse_sql_procedure(sql_text, target_table_hint=None, system_hint=None):
 
     clean_sql = str(sql_text).strip()
     
-    # 0. Extract Procedure Name
+    # 0. Extract Procedure Name (handles schema prefix like c##ods.PR_...)
     proc_name = ""
-    proc_match = re.search(r"create\s+(?:or\s+replace\s+)?procedure\s+([A-Za-z0-9_]+)", clean_sql, re.IGNORECASE)
+    proc_match = re.search(r"create\s+(?:or\s+replace\s+)?procedure\s+(?:[A-Za-z0-9_#]+\.)?([A-Za-z0-9_#]+)", clean_sql, re.IGNORECASE)
     if proc_match:
         proc_name = proc_match.group(1).upper()
 
@@ -117,7 +124,7 @@ def parse_sql_procedure(sql_text, target_table_hint=None, system_hint=None):
 
     def add_or_update_column(col_name, **kwargs):
         col_name = col_name.strip().upper()
-        if not col_name or col_name in ["FROM", "WHERE", "GROUP", "ORDER", "JOIN", "SET", "AND", "OR", "ON", "WHEN", "SELECT"]:
+        if not col_name or col_name in ["FROM", "WHERE", "GROUP", "ORDER", "JOIN", "SET", "AND", "OR", "ON", "WHEN", "SELECT", "BEGIN", "END", "COMMIT", "LOOP", "THEN", "ELSE", "IS", "AS"]:
             return
         if col_name not in column_dict:
             dict_vi, dict_type = BANK_COLUMN_DICT.get(col_name, (col_name, "VARCHAR2(50)"))
@@ -155,7 +162,7 @@ def parse_sql_procedure(sql_text, target_table_hint=None, system_hint=None):
             # If alias exists: expr as col_name or expr col_name
             parts = re.split(r"\s+(?:as\s+)?", raw_c, flags=re.IGNORECASE)
             col_name = parts[-1].strip().upper()
-            if col_name:
+            if col_name and col_name not in ["NULL", "DUAL"]:
                 add_or_update_column(col_name, notes="Cột xuất ra báo cáo (RefCursor)")
 
     # ==========================================================
@@ -245,26 +252,36 @@ def parse_sql_procedure(sql_text, target_table_hint=None, system_hint=None):
         for assign in assignments:
             if "=" in assign:
                 left, right = assign.split("=", 1)
-                left_col = left.strip().split(".")[-1].upper()
+                left_raw = left.strip()
                 right_expr = " ".join(right.strip().split())
                 
-                # If it is empty reset (e.g. SO_DU = ''), just make sure column is recorded
-                if right_expr in ["''", "null", "NULL"]:
-                    add_or_update_column(left_col, table=tbl_upd)
-                    continue
+                # Check if multi-column update: (col1, col2, col3) = (select ...)
+                if left_raw.startswith("(") and left_raw.endswith(")"):
+                    target_cols = [c.strip().split(".")[-1].upper() for c in left_raw[1:-1].split(",") if c.strip()]
+                else:
+                    target_cols = [left_raw.split(".")[-1].upper()]
 
-                # Check if right_expr contains a subquery (SELECT ... FROM ...)
-                src_tbl_sub = ""
-                m_from = re.search(r"from\s+([A-Za-z0-9_#]+)", right_expr, re.IGNORECASE)
-                if m_from:
-                    src_tbl_sub = m_from.group(1).upper()
+                for left_col in target_cols:
+                    if left_col in ["BEGIN", "END", "COMMIT", "THEN", "ELSE"]:
+                        continue
 
-                add_or_update_column(
-                    left_col,
-                    table=tbl_upd or target_table,
-                    transformation_rule=f"UPDATE: {right_expr}",
-                    source_table=src_tbl_sub or (target_table if "(" in right_expr and "so_du" in right_expr.lower() else primary_source_table)
-                )
+                    # If it is empty reset (e.g. SO_DU = ''), just make sure column is recorded
+                    if right_expr in ["''", "null", "NULL"]:
+                        add_or_update_column(left_col, table=tbl_upd)
+                        continue
+
+                    # Check if right_expr contains a subquery (SELECT ... FROM ...)
+                    src_tbl_sub = ""
+                    m_from = re.search(r"from\s+([A-Za-z0-9_#]+)", right_expr, re.IGNORECASE)
+                    if m_from:
+                        src_tbl_sub = m_from.group(1).upper()
+
+                    add_or_update_column(
+                        left_col,
+                        table=tbl_upd or target_table,
+                        transformation_rule=f"UPDATE: {right_expr[:120]}",
+                        source_table=src_tbl_sub or (target_table if "(" in right_expr and "quy_doi" in right_expr.lower() else primary_source_table)
+                    )
 
     # ==========================================================
     # Pass 4: INSERT INTO ... SELECT (with inline comments)
@@ -282,7 +299,7 @@ def parse_sql_procedure(sql_text, target_table_hint=None, system_hint=None):
             continue
 
         clean_expr = re.sub(r"^\s*select\s+", "", raw_expr, flags=re.IGNORECASE).strip()
-        if col_name in ["FROM", "WHERE", "GROUP", "ORDER", "JOIN", "SET", "AND", "OR", "ON", "WHEN", "THEN", "ELSE", "END", "LOOP", "COMMIT", "INTO"]:
+        if col_name in ["FROM", "WHERE", "GROUP", "ORDER", "JOIN", "SET", "AND", "OR", "ON", "WHEN", "THEN", "ELSE", "END", "LOOP", "COMMIT", "INTO", "BEGIN", "IS", "AS"]:
             continue
 
         # Skip procedure parameter names
