@@ -452,7 +452,6 @@ insert into CIC_KU
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sql: sqlText,
-              sql_text: sqlText,
               system_code: sysCode,
               target_table: rptCode ? (sysCode === "CIC" ? `CIC_${rptCode}` : `RPTB_${rptCode}`) : ""
             })
@@ -461,9 +460,6 @@ insert into CIC_KU
           const data = await res.json();
           if (data.success && data.fields) {
             currentParsedFields = data.fields;
-            if (data.procedure_name && procNameInput && !procNameInput.value.trim()) {
-              procNameInput.value = data.procedure_name;
-            }
             renderStudioPreview(data.fields);
             btnApply.disabled = (data.fields.length === 0);
             document.getElementById("studio-parsed-count").textContent = `${data.fields.length} chỉ tiêu`;
@@ -1877,59 +1873,77 @@ insert into CIC_KU
 
   function openEditModal(f) {
     const modal = document.getElementById("modal-field-edit");
+    if (!modal) return;
     document.getElementById("modal-form-title").textContent = `Chỉnh sửa Chỉ tiêu [${f.report_code}] ${f.field_code}`;
 
-    document.getElementById("form-id").value = f.id;
-    document.getElementById("form-system").value = f.system_code;
-    document.getElementById("form-report").value = f.report_code;
-    document.getElementById("form-field-code").value = f.field_code;
-    document.getElementById("form-field-name-vi").value = f.field_name_vi || "";
-    document.getElementById("form-data-type").value = f.data_type || "VARCHAR2(50)";
-    document.getElementById("form-target-table").value = f.target_table || "";
-    document.getElementById("form-status").value = f.status || "Active";
-    document.getElementById("form-source-table").value = f.source_table || "";
-    document.getElementById("form-source-column").value = f.source_column || "";
-    document.getElementById("form-transformation-rule").value = f.transformation_rule || "";
-    document.getElementById("form-lookup-ref").value = f.lookup_ref || "";
-    document.getElementById("form-implemented-by").value = f.implemented_by || "";
-    document.getElementById("form-regulatory-ref").value = f.regulatory_ref || "";
-    document.getElementById("form-notes").value = f.notes || "";
+    const setVal = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.value = (v != null) ? v : "";
+    };
+
+    setVal("form-id", f.id);
+    setVal("form-system", f.system_code);
+    setVal("form-report", f.report_code);
+    setVal("form-field-code", f.field_code);
+    setVal("form-field-name-vi", f.field_name_vi);
+    setVal("form-data-type", f.data_type || "VARCHAR2(50)");
+    setVal("form-target-table", f.target_table);
+    setVal("form-status", f.status || "Active");
+    setVal("form-source-table", f.source_table);
+    setVal("form-source-column", f.source_column);
+    setVal("form-transformation-rule", f.transformation_rule);
+    setVal("form-lookup-ref", f.lookup_ref);
+    setVal("form-implemented-by", f.implemented_by);
+    setVal("form-regulatory-ref", f.regulatory_ref);
+    setVal("form-notes", f.notes);
 
     modal.classList.add("active");
   }
 
   function openCreateModal() {
     const modal = document.getElementById("modal-field-edit");
+    if (!modal) return;
     document.getElementById("modal-form-title").textContent = "Thêm mới Chỉ tiêu Mapping";
-    document.getElementById("form-field-mapping").reset();
-    document.getElementById("form-id").value = "";
+    const form = document.getElementById("form-field-mapping");
+    if (form) form.reset();
+    
+    const setVal = (id, v) => {
+      const el = document.getElementById(id);
+      if (el) el.value = (v != null) ? v : "";
+    };
 
+    setVal("form-id", "");
     if (activeReport) {
-      document.getElementById("form-system").value = activeReport.system_code;
-      document.getElementById("form-report").value = activeReport.report_code;
-      document.getElementById("form-target-table").value = activeReport.target_table || "";
+      setVal("form-system", activeReport.system_code);
+      setVal("form-report", activeReport.report_code);
+      setVal("form-target-table", activeReport.target_table || "");
     }
 
     modal.classList.add("active");
   }
 
   async function saveFieldForm() {
-    const id = document.getElementById("form-id").value;
+    const getVal = (id, def = "") => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : def;
+    };
+
+    const id = getVal("form-id");
     const payload = {
-      system_code: document.getElementById("form-system").value,
-      report_code: document.getElementById("form-report").value,
-      field_code: document.getElementById("form-field-code").value,
-      field_name_vi: document.getElementById("form-field-name-vi").value,
-      data_type: document.getElementById("form-data-type").value,
-      target_table: document.getElementById("form-target-table").value,
-      status: document.getElementById("form-status").value,
-      source_table: document.getElementById("form-source-table").value,
-      source_column: document.getElementById("form-source-column").value,
-      transformation_rule: document.getElementById("form-transformation-rule").value,
-      lookup_ref: document.getElementById("form-lookup-ref").value,
-      implemented_by: document.getElementById("form-implemented-by").value,
-      regulatory_ref: document.getElementById("form-regulatory-ref").value,
-      notes: document.getElementById("form-notes").value,
+      system_code: getVal("form-system"),
+      report_code: getVal("form-report"),
+      field_code: getVal("form-field-code"),
+      field_name_vi: getVal("form-field-name-vi"),
+      data_type: getVal("form-data-type", "VARCHAR2(50)"),
+      target_table: getVal("form-target-table"),
+      status: getVal("form-status", "Active"),
+      source_table: getVal("form-source-table"),
+      source_column: getVal("form-source-column"),
+      transformation_rule: getVal("form-transformation-rule"),
+      lookup_ref: getVal("form-lookup-ref"),
+      implemented_by: getVal("form-implemented-by"),
+      regulatory_ref: getVal("form-regulatory-ref"),
+      notes: getVal("form-notes"),
     };
 
     if (!payload.report_code || !payload.field_code || !payload.field_name_vi) {
@@ -1948,7 +1962,7 @@ insert into CIC_KU
       const data = await res.json();
       if (data.success) {
         showToast("Đã lưu chỉ tiêu thành công!", "success");
-        document.getElementById("modal-field-edit").classList.remove("active");
+        document.getElementById("modal-field-edit")?.classList.remove("active");
         if (activeReport) selectReport(activeReport);
         loadStats();
       } else {
