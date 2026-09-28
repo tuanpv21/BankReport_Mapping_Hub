@@ -20,11 +20,27 @@ except ImportError:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SQLITE_PATH = os.path.join(BASE_DIR, "mapping_hub.db")
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip().strip("'\"")
+def _normalize_database_url(url):
+    """Sanitizes connection URL, fixing prefix and URL-encoding special chars in password (e.g. '@')."""
+    if not url:
+        return ""
+    url = url.strip().strip("'\"")
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    
+    if "://" in url:
+        scheme, rest = url.split("://", 1)
+        if "@" in rest:
+            auth_part, host_part = rest.rsplit("@", 1)
+            if ":" in auth_part:
+                user_part, pwd_part = auth_part.split(":", 1)
+                import urllib.parse
+                safe_pwd = urllib.parse.quote(urllib.parse.unquote(pwd_part), safe="")
+                url = f"{scheme}://{user_part}:{safe_pwd}@{host_part}"
+    return url
 
-# Fix prefix: postgres:// -> postgresql://
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+DATABASE_URL = _normalize_database_url(os.environ.get("DATABASE_URL", ""))
 
 
 class DictLikeRow:
@@ -145,9 +161,9 @@ class PostgresConnectionWrapper:
 
 def _get_pg_raw_conn():
     """Builds raw psycopg2 connection, ensuring sslmode=require for cloud PostgreSQL."""
-    if not DATABASE_URL:
+    url = _normalize_database_url(DATABASE_URL)
+    if not url:
         raise ValueError("DATABASE_URL is not configured")
-    url = DATABASE_URL
     if ("localhost" not in url and "127.0.0.1" not in url) and "sslmode=" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslmode=require"
@@ -171,45 +187,6 @@ def get_db():
 
 def is_postgres():
     return bool(DATABASE_URL and PSYCOPG2_AVAILABLE)
-
-
-def get_db_status():
-    """Returns details about the active database engine (PostgreSQL vs SQLite) and connectivity."""
-    if not DATABASE_URL:
-        return {"engine": "SQLite", "status": "Connected (Local SQLite)", "has_db_url": False}
-    if not PSYCOPG2_AVAILABLE:
-        return {"engine": "SQLite", "status": "psycopg2 not installed, using SQLite", "has_db_url": True}
-    try:
-        raw_conn = _get_pg_raw_conn()
-        cur = raw_conn.cursor()
-        cur.execute("SELECT version();")
-        ver = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM mappings;")
-        cnt = cur.fetchone()[0]
-        cur.close()
-        raw_conn.close()
-        return {
-            "engine": "PostgreSQL",
-            "status": "Connected (Cloud Database)",
-            "version": ver.split(",")[0] if ver else "PostgreSQL",
-            "mappings_count": cnt,
-            "has_db_url": True
-        }
-    except Exception as e:
-        err_msg = str(e)
-        advice = ""
-        if "pooler.supabase.com" in DATABASE_URL and ("postgres@" in DATABASE_URL or 'user "postgres"' in err_msg):
-            advice = "Khi dùng host pooler.supabase.com, username bắt buộc phải là postgres.[MÃ_PROJECT_REF] (ví dụ postgres.vxgmkg...), không được để mỗi chữ postgres."
-        elif "[YOUR-PASSWORD]" in DATABASE_URL or "[PASSWORD]" in DATABASE_URL:
-            advice = "Bạn chưa thay thế [YOUR-PASSWORD] bằng mật khẩu thật."
-        elif "password authentication failed" in err_msg:
-            advice = "Mật khẩu database không chính xác hoặc có ký tự đặc biệt (@, #, $) làm lỗi parse URL. Hãy Reset Password chỉ gồm chữ và số."
-        return {
-            "engine": "SQLite (Fallback)",
-            "status": f"Connection error: {err_msg[:120]}",
-            "advice": advice,
-            "has_db_url": True
-        }
 
 
 def init_schema():
