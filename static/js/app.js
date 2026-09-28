@@ -36,23 +36,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function switchTab(tabId, saveHistory = true) {
+  function switchTab(tabId) {
     activeTab = tabId;
-    if (saveHistory) {
-      try { localStorage.setItem("bmh_active_tab", tabId); } catch(e){}
-    }
     tabLinks.forEach(l => l.classList.toggle("active", l.getAttribute("data-tab") === tabId));
     tabViews.forEach(v => v.classList.toggle("active", v.id === tabId));
 
-    if (tabId === "tab-dashboard") {
-      loadStats();
-      renderRecentReports();
-    }
+    if (tabId === "tab-dashboard") loadStats();
     if (tabId === "tab-explorer" && !activeReport && allReports.length > 0) {
-      const savedRep = localStorage.getItem("bmh_active_report");
-      const savedSys = localStorage.getItem("bmh_active_sys");
-      let found = allReports.find(r => r.report_code === savedRep && (!savedSys || r.system_code === savedSys));
-      selectReport(found || allReports[0]);
+      selectReport(allReports[0]);
     }
     if (tabId === "tab-matrix") {
       loadMatrixReportsDropdown();
@@ -126,25 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
       populateExportDropdown();
       populateStudioDropdown();
       loadMatrixReportsDropdown();
-      renderRecentReports();
-
-      // Restore last active report or default to allReports[0]
-      const savedRep = localStorage.getItem("bmh_active_report");
-      const savedSys = localStorage.getItem("bmh_active_sys");
-      let targetReport = allReports[0];
-      if (savedRep) {
-        const found = allReports.find(r => r.report_code === savedRep && (!savedSys || r.system_code === savedSys));
-        if (found) targetReport = found;
-      }
 
       if (allReports.length > 0 && !activeReport) {
-        selectReport(targetReport);
-      }
-
-      // Restore last active tab if set and not already dashboard
-      const savedTab = localStorage.getItem("bmh_active_tab");
-      if (savedTab && savedTab !== "tab-dashboard" && document.getElementById(savedTab)) {
-        switchTab(savedTab, false);
+        selectReport(allReports[0]);
       }
     } catch (e) {
       console.error("Error loading reports:", e);
@@ -246,8 +221,6 @@ document.addEventListener("DOMContentLoaded", () => {
     filtered.forEach(r => {
       const item = document.createElement("div");
       item.className = "master-report-card";
-      item.setAttribute("data-code", r.report_code);
-      item.setAttribute("data-sys", r.system_code);
       if (activeReport && activeReport.report_code === r.report_code && activeReport.system_code === r.system_code) {
         item.classList.add("active");
       }
@@ -277,17 +250,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function selectReport(report) {
     activeReport = report;
-    try {
-      localStorage.setItem("bmh_active_report", report.report_code);
-      localStorage.setItem("bmh_active_sys", report.system_code);
-      addRecentReport(report);
-    } catch (e) {}
-
-    // Highlight active card in master list
-    document.querySelectorAll(".master-report-card").forEach(c => {
-      const match = c.getAttribute("data-code") === report.report_code && c.getAttribute("data-sys") === report.system_code;
-      c.classList.toggle("active", match);
-    });
 
     document.getElementById("active-report-badge").textContent = report.report_code;
     document.getElementById("active-report-title").textContent = `[${report.system_code}] ${report.report_code} - ${report.report_name || ''}`;
@@ -306,55 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-rose">Lỗi khi tải chỉ tiêu của báo cáo này.</td></tr>';
     }
-  }
-
-  function addRecentReport(r) {
-    if (!r || !r.report_code) return;
-    try {
-      let list = JSON.parse(localStorage.getItem("bmh_recent_reports") || "[]");
-      list = list.filter(x => !(x.report_code === r.report_code && x.system_code === r.system_code));
-      list.unshift({
-        report_code: r.report_code,
-        system_code: r.system_code,
-        report_name: r.report_name || r.report_code,
-        field_count: r.field_count || 0
-      });
-      if (list.length > 8) list = list.slice(0, 8);
-      localStorage.setItem("bmh_recent_reports", JSON.stringify(list));
-      renderRecentReports();
-    } catch (e) {}
-  }
-
-  function renderRecentReports() {
-    const container = document.getElementById("recent-reports-container");
-    const chipsBox = document.getElementById("recent-reports-chips");
-    if (!container || !chipsBox) return;
-
-    try {
-      const list = JSON.parse(localStorage.getItem("bmh_recent_reports") || "[]");
-      if (list.length === 0) {
-        container.style.display = "none";
-        return;
-      }
-      container.style.display = "block";
-      chipsBox.innerHTML = "";
-      list.forEach(r => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        const isTT35 = r.system_code === "TT35";
-        btn.style.cssText = `background:${isTT35 ? "#ecfdf5" : "#eff6ff"}; border:1px solid ${isTT35 ? "#a7f3d0" : "#bfdbfe"}; color:${isTT35 ? "#065f46" : "#1e40af"}; border-radius:20px; padding:4px 12px; font-size:12px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.15s ease;`;
-        btn.innerHTML = `<span style="font-size:10px; background:${isTT35 ? "#10b981" : "#3b82f6"}; color:#fff; padding:1px 5px; border-radius:4px;">${r.system_code}</span> <span>${r.report_code}</span>`;
-        btn.title = `${r.report_name || r.report_code} (${r.field_count || 0} chỉ tiêu)`;
-        btn.addEventListener("click", () => {
-          switchTab("tab-explorer");
-          const found = allReports.find(x => x.report_code === r.report_code && x.system_code === r.system_code);
-          if (found) {
-            selectReport(found);
-          }
-        });
-        chipsBox.appendChild(btn);
-      });
-    } catch (e) {}
   }
 
   // Render 9 standard columns: STT | Table | Column | DataType | Tên nghiệp vụ | Ghi chú điều kiện | Bảng nguồn | Cột nguồn | Công thức tính | Thao tác
@@ -948,20 +861,59 @@ insert into CIC_KU
     const sel = document.getElementById("matrix-select-report");
     if (!sel) return;
 
-    const matrixReports = allReports.filter(r => r.has_matrix == 1);
-    if (matrixReports.length > 0) {
+    if (allReports.length > 0) {
       const currentVal = sel.value;
       sel.innerHTML = "";
-      matrixReports.forEach(r => {
+
+      // Group 1: 2D Matrix Templates
+      const matrixGroup = document.createElement("optgroup");
+      matrixGroup.label = "⭐ Mẫu biểu có Ma trận 2 Chiều (Dòng R x Cột C)";
+      allReports.filter(r => r.has_matrix == 1).forEach(r => {
         const opt = document.createElement("option");
         opt.value = r.report_code;
-        opt.textContent = `[${r.system_code}] ${r.report_code} - ${r.report_name} (${r.field_count} ô)`;
-        sel.appendChild(opt);
+        opt.textContent = `[${r.system_code}] ${r.report_code} - ${r.report_name} (${r.field_count} ô/chỉ tiêu)`;
+        matrixGroup.appendChild(opt);
       });
-      if (currentVal && Array.from(sel.options).some(o => o.value === currentVal)) {
+      sel.appendChild(matrixGroup);
+
+      // Group 2: All Other TT35 Reports
+      const otherTT35 = allReports.filter(r => r.system_code === "TT35" && r.has_matrix != 1);
+      if (otherTT35.length > 0) {
+        const tt35Group = document.createElement("optgroup");
+        tt35Group.label = "📊 Các Báo cáo Thông tư 35 (TT35) khác";
+        otherTT35.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r.report_code;
+          opt.textContent = `[TT35] ${r.report_code} - ${r.report_name} (${r.field_count} chỉ tiêu)`;
+          tt35Group.appendChild(opt);
+        });
+        sel.appendChild(tt35Group);
+      }
+
+      // Group 3: CIC Reports
+      const cicReports = allReports.filter(r => r.system_code === "CIC");
+      if (cicReports.length > 0) {
+        const cicGroup = document.createElement("optgroup");
+        cicGroup.label = "🏛️ Các Báo cáo Thông tin Tín dụng (CIC)";
+        cicReports.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r.report_code;
+          opt.textContent = `[CIC] ${r.report_code} - ${r.report_name} (${r.field_count} chỉ tiêu)`;
+          cicGroup.appendChild(opt);
+        });
+        sel.appendChild(cicGroup);
+      }
+
+      const allOptions = Array.from(sel.querySelectorAll("option"));
+      if (currentVal && allOptions.some(o => o.value === currentVal)) {
         sel.value = currentVal;
       } else {
-        sel.value = matrixReports[0].report_code;
+        const savedRep = localStorage.getItem("bmh_active_report");
+        if (savedRep && allOptions.some(o => o.value === savedRep)) {
+          sel.value = savedRep;
+        } else {
+          sel.value = "A02211";
+        }
       }
     }
 
