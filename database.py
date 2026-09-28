@@ -196,9 +196,18 @@ def get_db_status():
             "has_db_url": True
         }
     except Exception as e:
+        err_msg = str(e)
+        advice = ""
+        if "pooler.supabase.com" in DATABASE_URL and ("postgres@" in DATABASE_URL or 'user "postgres"' in err_msg):
+            advice = "Khi dùng host pooler.supabase.com, username bắt buộc phải là postgres.[MÃ_PROJECT_REF] (ví dụ postgres.vxgmkg...), không được để mỗi chữ postgres."
+        elif "[YOUR-PASSWORD]" in DATABASE_URL or "[PASSWORD]" in DATABASE_URL:
+            advice = "Bạn chưa thay thế [YOUR-PASSWORD] bằng mật khẩu thật."
+        elif "password authentication failed" in err_msg:
+            advice = "Mật khẩu database không chính xác hoặc có ký tự đặc biệt (@, #, $) làm lỗi parse URL. Hãy Reset Password chỉ gồm chữ và số."
         return {
             "engine": "SQLite (Fallback)",
-            "status": f"Connection error: {str(e)[:120]}",
+            "status": f"Connection error: {err_msg[:120]}",
+            "advice": advice,
             "has_db_url": True
         }
 
