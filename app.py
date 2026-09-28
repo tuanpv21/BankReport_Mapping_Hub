@@ -101,6 +101,14 @@ def ensure_data_seeded():
 init_schema()
 ensure_data_seeded()
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    return jsonify({
+        "error": str(e),
+        "traceback": traceback.format_exc()
+    }), 500
+
 @app.route("/")
 def index():
     if os.path.exists(HTML_PATH) and os.path.getsize(HTML_PATH) > 0:
