@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLineage();
   initExportImport();
   initModals();
+  initNewReportImportModal();
   initSync();
 
   initAuthAndUsers();
@@ -1670,6 +1671,14 @@ insert into CIC_KU
       window.location.href = `/api/export/word?system=${sys}&report=${rpt}`;
     });
 
+    
+    const btnIoOpenModal = document.getElementById("btn-io-open-import-modal");
+    if (btnIoOpenModal) {
+      btnIoOpenModal.addEventListener("click", () => {
+        document.getElementById("modal-import-new-report")?.classList.add("active");
+      });
+    }
+
     const dropzone = document.getElementById("excel-dropzone");
     const fileInput = document.getElementById("excel-file-selector");
     const feedback = document.getElementById("import-upload-result");
@@ -2000,4 +2009,166 @@ insert into CIC_KU
       }
     });
   }
+
+  function initNewReportImportModal() {
+    const modal = document.getElementById("modal-import-new-report");
+    const btnOpenTop = document.getElementById("btn-open-import-report-modal");
+    const btnOpenSide = document.getElementById("btn-side-import-report");
+    const dropzone = document.getElementById("new-report-dropzone");
+    const fileInput = document.getElementById("new-report-file-input");
+    const fileNameText = document.getElementById("new-report-file-name");
+    const btnSubmit = document.getElementById("btn-submit-import-report");
+    const resultBox = document.getElementById("new-report-import-result");
+    const rptCodeInput = document.getElementById("import-report-code");
+    const rptNameInput = document.getElementById("import-report-name");
+
+    let selectedFile = null;
+
+    function openModal() {
+      if (!modal) return;
+      selectedFile = null;
+      if (fileInput) fileInput.value = "";
+      if (fileNameText) fileNameText.innerHTML = '<i class="fa-solid fa-file-excel" style="font-size:38px; color:#059669; margin-bottom:8px; display:block;"></i> Kéo thả file Excel vào đây hoặc bấm để chọn file';
+      if (resultBox) resultBox.innerHTML = "";
+      modal.classList.add("active");
+    }
+
+    if (btnOpenTop) btnOpenTop.addEventListener("click", openModal);
+    if (btnOpenSide) btnOpenSide.addEventListener("click", openModal);
+
+    if (dropzone && fileInput) {
+      dropzone.addEventListener("click", () => fileInput.click());
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "#059669";
+        dropzone.style.background = "#eff6ff";
+      });
+      dropzone.addEventListener("dragleave", () => {
+        dropzone.style.borderColor = "#cbd5e1";
+        dropzone.style.background = "#f8fafc";
+      });
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "#cbd5e1";
+        dropzone.style.background = "#f8fafc";
+        if (e.dataTransfer.files.length > 0) {
+          setFile(e.dataTransfer.files[0]);
+        }
+      });
+
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files.length > 0) {
+          setFile(fileInput.files[0]);
+        }
+      });
+    }
+
+    function setFile(file) {
+      selectedFile = file;
+      const sizeKb = Math.round(file.size / 1024);
+      if (fileNameText) {
+        fileNameText.innerHTML = `<i class="fa-solid fa-file-excel" style="font-size:38px; color:#059669; margin-bottom:8px; display:block;"></i> <span style="color:#059669; font-weight:700;">${escapeHtml(file.name)}</span> (${sizeKb} KB)`;
+      }
+
+      // Auto-suggest report code if empty
+      if (rptCodeInput && !rptCodeInput.value.trim()) {
+        let guess = file.name.replace(/\.[^/.]+$/, "");
+        guess = guess.replace(/template_?/i, "").replace(/mapping_?/i, "").replace(/báo_?cáo_?/i, "").trim();
+        const codeMatch = guess.match(/[A-Za-z0-9_-]{2,20}/);
+        if (codeMatch) {
+          rptCodeInput.value = codeMatch[0].toUpperCase();
+        }
+      }
+    }
+
+    if (btnSubmit) {
+      btnSubmit.addEventListener("click", async () => {
+        if (!selectedFile) {
+          showToast("Vui lòng chọn hoặc kéo thả file Excel cần nạp!", "warning");
+          if (resultBox) {
+            resultBox.innerHTML = '<div style="background:#fffbeb; border:1px solid #fde68a; padding:12px; border-radius:8px; color:#92400e; font-size:13px;"><i class="fa-solid fa-triangle-exclamation"></i> Vui lòng chọn file Excel (.xlsx, .xls) trước khi nhấn nạp!</div>';
+          }
+          return;
+        }
+
+        const sysCode = document.getElementById("import-system-code")?.value || "TT35";
+        const rptCode = document.getElementById("import-report-code")?.value.trim() || "";
+        const rptName = document.getElementById("import-report-name")?.value.trim() || "";
+        const tgtTbl = document.getElementById("import-target-table")?.value.trim() || "";
+        const cycle = document.getElementById("import-report-cycle")?.value || "Tháng";
+        const overwrite = document.getElementById("import-overwrite-check")?.checked ? "true" : "false";
+
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("system_code", sysCode);
+        formData.append("report_code", rptCode);
+        formData.append("report_name", rptName);
+        formData.append("target_table", tgtTbl);
+        formData.append("cycle", cycle);
+        formData.append("overwrite", overwrite);
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang nạp vào Database Supabase...';
+        if (resultBox) {
+          resultBox.innerHTML = '<div style="background:#eff6ff; border:1px solid #bfdbfe; padding:12px; border-radius:8px; color:#1e40af; font-size:13px;"><i class="fa-solid fa-spinner fa-spin"></i> Đang phân tích file Excel và lưu vào cơ sở dữ liệu đám mây...</div>';
+        }
+
+        try {
+          const resp = await fetch("/api/reports/import-excel", {
+            method: "POST",
+            body: formData
+          });
+          const res = await resp.json();
+
+          if (res.success) {
+            if (resultBox) {
+              resultBox.innerHTML = `
+                <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:12px; border-radius:8px; color:#065f46; font-size:13px;">
+                  <i class="fa-solid fa-circle-check text-emerald" style="font-size:16px;"></i>
+                  <strong>${escapeHtml(res.message || "Nạp báo cáo thành công!")}</strong>
+                  <div style="font-size:12px; margin-top:4px;">
+                    Mã báo cáo: <strong>${escapeHtml(res.report_code)}</strong> (${escapeHtml(res.system_code)}) | Số chỉ tiêu đã ánh xạ: <strong>${res.imported_count}</strong>
+                  </div>
+                </div>
+              `;
+            }
+            showToast(`Đã thêm báo cáo ${res.report_code} với ${res.imported_count} chỉ tiêu!`, "success");
+
+            // Refresh reports and stats
+            await loadStats();
+            await loadReports();
+
+            // Auto select the new report after 1s
+            setTimeout(() => {
+              modal.classList.remove("active");
+              switchTab("tab-explorer");
+              if (res.report_code) {
+                selectReport(res.report_code);
+              }
+            }, 1000);
+
+          } else {
+            if (resultBox) {
+              resultBox.innerHTML = `
+                <div style="background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px; color:#991b1b; font-size:13px;">
+                  <i class="fa-solid fa-circle-xmark text-danger"></i>
+                  <strong>Không thể nạp dữ liệu:</strong> ${escapeHtml(res.error || "Lỗi không xác định")}
+                </div>
+              `;
+            }
+            showToast(res.error || "Lỗi nạp file Excel", "error");
+          }
+        } catch (err) {
+          if (resultBox) {
+            resultBox.innerHTML = `<div style="background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px; color:#991b1b; font-size:13px;">Lỗi kết nối máy chủ: ${err.message}</div>`;
+          }
+          showToast("Lỗi kết nối máy chủ!", "error");
+        } finally {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> <span>Tiến hành Nạp Báo cáo &amp; Mapping</span>';
+        }
+      });
+    }
+  }
+
 });

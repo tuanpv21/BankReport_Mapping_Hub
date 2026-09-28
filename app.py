@@ -101,14 +101,6 @@ def ensure_data_seeded():
 init_schema()
 ensure_data_seeded()
 
-@app.errorhandler(Exception)
-def handle_exception(e):
-    import traceback
-    return jsonify({
-        "error": str(e),
-        "traceback": traceback.format_exc()
-    }), 500
-
 @app.route("/")
 def index():
     if os.path.exists(HTML_PATH) and os.path.getsize(HTML_PATH) > 0:
@@ -133,7 +125,6 @@ def get_stats():
     tt35_mappings = cur.execute("SELECT COUNT(*) FROM mappings WHERE system_code = 'TT35'").fetchone()[0]
     
     conn.close()
-    db_info = database.get_db_status()
     return jsonify({
         "total_reports": total_reports,
         "total_mappings": total_mappings,
@@ -141,16 +132,7 @@ def get_stats():
         "unmapped_source": unmapped_source,
         "mapped_ratio": round((mapped_source / total_mappings * 100), 1) if total_mappings else 0,
         "cic": {"reports": cic_reports, "mappings": cic_mappings},
-        "tt35": {"reports": tt35_reports, "mappings": tt35_mappings},
-        "database": db_info
-    })
-
-@app.route("/api/health")
-def health_check():
-    db_info = database.get_db_status()
-    return jsonify({
-        "status": "healthy",
-        "database": db_info
+        "tt35": {"reports": tt35_reports, "mappings": tt35_mappings}
     })
 
 @app.route("/api/reports")
@@ -811,79 +793,45 @@ def export_word():
     file_path = exporter.export_to_word(system, report)
     return send_file(file_path, as_attachment=True, download_name=os.path.basename(file_path))
 
+@app.route("/api/template/sample-mapping-excel")
+def download_sample_mapping_template():
+    file_path = exporter.generate_sample_mapping_template()
+    return send_file(file_path, as_attachment=True, download_name="Template_Mapping_Mau_Chuan.xlsx")
+
+@app.route("/api/reports/import-excel", methods=["POST"])
 @app.route("/api/import/excel", methods=["POST"])
-def import_excel():
+def import_excel_report():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return jsonify({"success": False, "error": "Chưa chọn file Excel tải lên"}), 400
     f = request.files["file"]
     if f.filename == "":
-        return jsonify({"error": "Filename is empty"}), 400
-        
+        return jsonify({"success": False, "error": "Tên file rỗng"}), 400
+
     filename = secure_filename(f.filename)
+    if not filename:
+        import time
+        filename = f"upload_{int(time.time())}.xlsx"
     save_path = os.path.join(UPLOAD_FOLDER, filename)
     f.save(save_path)
-    
-    try:
-        wb = openpyxl.load_workbook(save_path, data_only=True)
-        ws = wb.active
-        conn = get_db()
-        cur = conn.cursor()
-        
-        imported = 0
-        # Template columns:
-        # Col 1: STT
-        # Col 2: Table
-        # Col 3: Column
-        # Col 4: DataType
-        # Col 5: Tên nghiệp vụ (Mô tả)
-        # Col 6: Ghi chú điều kiện
-        # Col 7: Bảng nguồn
-        # Col 8: Cột nguồn
-        # Col 9: Công thức tính
-        start_row = 4
-        for r in range(start_row, ws.max_row + 1):
-            tbl = ws.cell(row=r, column=2).value
-            field_code = ws.cell(row=r, column=3).value
-            data_type = ws.cell(row=r, column=4).value
-            field_name_vi = ws.cell(row=r, column=5).value
-            notes = ws.cell(row=r, column=6).value
-            src_table = ws.cell(row=r, column=7).value
-            src_col = ws.cell(row=r, column=8).value
-            rule = ws.cell(row=r, column=9).value
 
-            if not field_code:
-                continue
+    system_code = request.form.get("system_code", "").strip()
+    report_code = request.form.get("report_code", "").strip()
+    report_name = request.form.get("report_name", "").strip()
+    target_table = request.form.get("target_table", "").strip()
+    cycle = request.form.get("cycle", "Tháng").strip()
+    overwrite = request.form.get("overwrite", "false").lower() in ["true", "1", "yes"]
 
-            tbl_str = str(tbl or "").strip().upper()
-            sys_code = "CIC" if "CIC" in tbl_str else "TT35"
-            rpt_code = tbl_str.replace("CIC_", "").replace("RPTB_", "")
-                
-            cur.execute("""
-            INSERT INTO mappings (
-                system_code, report_code, field_code, field_name_vi, data_type,
-                target_table, target_column, source_system, source_table, source_column,
-                transformation_rule, notes, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ODS', ?, ?, ?, ?, 'Active')
-            """, (
-                sys_code,
-                rpt_code,
-                str(field_code).strip(),
-                str(field_name_vi or field_code).strip(),
-                str(data_type or "VARCHAR2(50)").strip(),
-                tbl_str,
-                str(field_code).strip(),
-                str(src_table or "").strip(),
-                str(src_col or "").strip(),
-                str(rule or "").strip(),
-                str(notes or "").strip()
-            ))
-            imported += 1
-            
-        conn.commit()
-        conn.close()
-        return jsonify({"success": True, "imported_count": imported})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    res = exporter.import_new_report_excel(
+        save_path,
+        system_code=system_code or None,
+        report_code=report_code or None,
+        report_name=report_name or None,
+        target_table=target_table or None,
+        cycle=cycle,
+        overwrite=overwrite
+    )
+    status_code = 200 if res.get("success") else 400
+    return jsonify(res), status_code
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5050")

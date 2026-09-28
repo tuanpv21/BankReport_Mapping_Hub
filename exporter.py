@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Export Engine for BankReport Mapping Hub.
 Exports mappings to:
@@ -8,7 +8,6 @@ Exports mappings to:
 """
 
 import os
-import sqlite3
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -17,14 +16,14 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "mapping_hub.db")
+import database
 
 def export_to_excel(system_code=None, report_code=None, output_path=None):
     if not output_path:
         prefix = f"{system_code}_{report_code}" if report_code else (system_code or "ALL")
         output_path = os.path.join(os.path.dirname(__file__), f"Export_Mapping_{prefix}.xlsx")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = database.get_db()
     cur = conn.cursor()
 
     query = """
@@ -129,7 +128,7 @@ def export_to_word(system_code=None, report_code=None, output_path=None):
         prefix = f"{system_code}_{report_code}" if report_code else (system_code or "ALL")
         output_path = os.path.join(os.path.dirname(__file__), f"Doc_Spec_{prefix}.docx")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = database.get_db()
     cur = conn.cursor()
 
     query = """
@@ -244,7 +243,7 @@ def export_matrix_template(report_code, output_path=None):
     if not output_path:
         output_path = os.path.join(os.path.dirname(__file__), f"Template_Mapping_{report_code}.xlsx")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = database.get_db()
     cur = conn.cursor()
 
     rpt = cur.execute("SELECT report_code, system_code, report_name, target_table, procedure_name, cycle, unit FROM reports WHERE report_code = ?", (report_code,)).fetchone()
@@ -438,7 +437,7 @@ def import_matrix_template(file_path):
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb["Mapping_Config"] if "Mapping_Config" in wb.sheetnames else wb.active
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = database.get_db()
     cur = conn.cursor()
 
     updated = 0
@@ -494,3 +493,258 @@ def import_matrix_template(file_path):
     conn.close()
 
     return {"success": True, "updated_count": updated}
+
+
+def generate_sample_mapping_template(output_path=None):
+    """Generates a clean, professional, standardized Excel template for users to download."""
+    if not output_path:
+        output_path = os.path.join(os.path.dirname(__file__), "Template_Mapping_Mau_Chuan.xlsx")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Mapping_Spec"
+
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    sample_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    border = Border(
+        left=Side(style="thin", color="CBD5E1"),
+        right=Side(style="thin", color="CBD5E1"),
+        top=Side(style="thin", color="CBD5E1"),
+        bottom=Side(style="thin", color="CBD5E1")
+    )
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    ws.merge_cells("A1:I1")
+    t_cell = ws["A1"]
+    t_cell.value = "TEMPLATE MAPPING CHỈ TIÊU BÁO CÁO NGÂN HÀNG (DÙNG ĐỂ IMPORT VÀO HỆ THỐNG)"
+    t_cell.font = Font(name="Calibri", size=13, bold=True, color="1E3A8A")
+    t_cell.alignment = align_center
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:I2")
+    sub_cell = ws["A2"]
+    sub_cell.value = "Hướng dẫn: Điền thông tin theo các cột từ dòng 4 trở đi. Cột B (Table) và C (Column) là bắt buộc. Hệ thống tự động tạo báo cáo và chỉ tiêu mapping."
+    sub_cell.font = Font(name="Calibri", size=10, italic=True, color="475569")
+    sub_cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[2].height = 20
+
+    headers = [
+        "STT", "Table (Bảng đích)", "Column (Mã chỉ tiêu)", "DataType (Kiểu DL)", 
+        "Tên nghiệp vụ (Mô tả)", "Ghi chú / Điều kiện lọc", "Bảng nguồn (Source Table)", 
+        "Cột nguồn (Source Column)", "Công thức tính / Transformation Rule"
+    ]
+    for col_idx, h in enumerate(headers, 1):
+        c = ws.cell(row=3, column=col_idx, value=h)
+        c.fill = header_fill
+        c.font = header_font
+        c.alignment = align_center
+        c.border = border
+    ws.row_dimensions[3].height = 28
+
+    samples = [
+        (1, "ODS_RPT_B01", "MA_CHI_NHANH", "VARCHAR2(20)", "Mã chi nhánh ngân hàng", "Chi nhánh cấp 1 & PGD", "ODS_BRANCH", "BRANCH_CODE", "BRANCH_CODE"),
+        (2, "ODS_RPT_B01", "DU_NO_TIEN_MAT", "NUMBER(20,4)", "Dư nợ tài khoản tiền mặt", "Tài khoản 1011 quy đổi VND", "t1080_tb_gl_bal_quy_doi", "bal_amt", "SUM(bal_amt) WHERE gl_account = '1011' AND ccy = 'VND'"),
+        (3, "ODS_RPT_B01", "LAI_PHAI_THU", "NUMBER(20,4)", "Số lãi dự thu tồn đọng", "Phát sinh lũy kế trong kỳ", "ODS_LN_INTEREST", "ACCRUED_INT", "NVL(ACCRUED_INT, 0)"),
+        (4, "ODS_RPT_B01", "NHOM_NO", "VARCHAR2(10)", "Phân loại nhóm nợ CIC", "Theo quy định Thông tư 31/NHNN", "ODS_CIC_ACCOUNT", "CIC_GROUP", "CIC_GROUP")
+    ]
+
+    for r_idx, s in enumerate(samples, 4):
+        ws.row_dimensions[r_idx].height = 22
+        for c_idx, val in enumerate(s, 1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell.font = Font(name="Calibri", size=10)
+            cell.border = border
+            cell.fill = sample_fill
+            cell.alignment = align_center if c_idx in [1, 4] else align_left
+
+    widths = [8, 22, 24, 18, 32, 28, 26, 22, 45]
+    for idx, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
+
+    wb.save(output_path)
+    return output_path
+
+
+def import_new_report_excel(file_path, system_code=None, report_code=None, report_name=None, target_table=None, cycle="Tháng", overwrite=False):
+    """Parses uploaded Excel file, creates or updates report in reports table, and inserts mappings."""
+    if not os.path.exists(file_path):
+        return {"success": False, "error": "File không tồn tại trên máy chủ"}
+
+    wb = openpyxl.load_workbook(file_path, data_only=True)
+    ws = wb["Mapping_Spec"] if "Mapping_Spec" in wb.sheetnames else (wb["Mapping_Config"] if "Mapping_Config" in wb.sheetnames else wb.active)
+
+    header_row_idx = None
+    col_map = {}
+    for r in range(1, min(15, ws.max_row + 1)):
+        row_vals = [str(ws.cell(row=r, column=c).value or "").strip().lower() for c in range(1, min(25, ws.max_column + 1))]
+        filled = [v for v in row_vals if v]
+        if len(filled) < 3:
+            continue
+        has_col = any("column" in v or "mã chỉ tiêu" in v or "mã cột" in v or "field" in v for v in row_vals)
+        has_name = any("tên" in v or "mô tả" in v or "name" in v or "chỉ tiêu" in v for v in row_vals)
+        if has_col or (has_name and any("bảng" in v or "table" in v for v in row_vals)):
+            header_row_idx = r
+            for c_idx, val in enumerate(row_vals, 1):
+                if not val:
+                    continue
+                if "stt" in val or "no." in val:
+                    col_map["stt"] = c_idx
+                elif "table" in val or "bảng đích" in val:
+                    col_map["target_table"] = c_idx
+                elif "column" in val or "mã chỉ tiêu" in val or "mã cột" in val or "field_code" in val or "mã" in val:
+                    if "target_column" not in col_map:
+                        col_map["target_column"] = c_idx
+                elif "datatype" in val or "kiểu dl" in val or "kiểu dữ liệu" in val or "data type" in val:
+                    col_map["data_type"] = c_idx
+                elif "tên" in val or "mô tả" in val or "diễn giải" in val or "field_name" in val:
+                    col_map["field_name_vi"] = c_idx
+                elif "ghi chú" in val or "điều kiện" in val or "note" in val:
+                    col_map["notes"] = c_idx
+                elif "bảng nguồn" in val or "source_table" in val or "source table" in val:
+                    col_map["source_table"] = c_idx
+                elif "cột nguồn" in val or "source_column" in val or "source column" in val:
+                    col_map["source_column"] = c_idx
+                elif "công thức" in val or "quy tắc" in val or "rule" in val or "formula" in val or "transformation" in val:
+                    col_map["transformation_rule"] = c_idx
+                elif "tài khoản" in val or "gl" in val or "account" in val:
+                    col_map["gl_account"] = c_idx
+                elif "phương pháp" in val or "method" in val:
+                    col_map["calc_method"] = c_idx
+            break
+
+    if not header_row_idx:
+        header_row_idx = 3
+        col_map = {
+            "stt": 1, "target_table": 2, "target_column": 3, "data_type": 4,
+            "field_name_vi": 5, "notes": 6, "source_table": 7, "source_column": 8,
+            "transformation_rule": 9
+        }
+
+    def get_val(r_num, key, default=""):
+        c = col_map.get(key)
+        if not c:
+            return default
+        v = ws.cell(row=r_num, column=c).value
+        return str(v).strip() if v is not None else default
+
+    data_rows = []
+    found_tables = set()
+    for r in range(header_row_idx + 1, ws.max_row + 1):
+        f_code = get_val(r, "target_column")
+        f_name = get_val(r, "field_name_vi")
+        t_tbl = get_val(r, "target_table")
+
+        if not f_code and not f_name:
+            continue
+        if not f_code and f_name:
+            f_code = f"COL_{r - header_row_idx}"
+
+        if t_tbl:
+            found_tables.add(t_tbl.upper())
+
+        data_rows.append({
+            "target_table": t_tbl,
+            "field_code": f_code,
+            "field_name_vi": f_name or f_code,
+            "data_type": get_val(r, "data_type", "VARCHAR2(50)"),
+            "notes": get_val(r, "notes"),
+            "source_table": get_val(r, "source_table"),
+            "source_column": get_val(r, "source_column"),
+            "transformation_rule": get_val(r, "transformation_rule"),
+            "gl_account": get_val(r, "gl_account"),
+            "calc_method": get_val(r, "calc_method")
+        })
+
+    if not data_rows:
+        return {"success": False, "error": "Không tìm thấy dòng dữ liệu chỉ tiêu nào trong file Excel"}
+
+    if not report_code:
+        if found_tables:
+            primary_tbl = list(found_tables)[0]
+            clean_rpt = primary_tbl.replace("ODS_RPT_", "").replace("RPTB_", "").replace("CIC_", "").replace("RPT_", "")
+            report_code = clean_rpt or primary_tbl
+        else:
+            base_fname = os.path.splitext(os.path.basename(file_path))[0]
+            report_code = base_fname.replace("Template_", "").replace("Mapping_", "")
+
+    report_code = str(report_code).strip().upper()
+
+    if not system_code:
+        if "CIC" in report_code or any("CIC" in t for t in found_tables):
+            system_code = "CIC"
+        elif "GL" in report_code or any("GL" in t for t in found_tables):
+            system_code = "GL"
+        else:
+            system_code = "TT35"
+
+    if not report_name:
+        report_name = f"Báo cáo {report_code}"
+
+    if not target_table:
+        target_table = list(found_tables)[0] if found_tables else f"ODS_RPT_{report_code}"
+
+    conn = database.get_db()
+    cur = conn.cursor()
+
+    existing_rpt = cur.execute("SELECT report_code FROM reports WHERE report_code = ? AND system_code = ?", (report_code, system_code)).fetchone()
+    if not existing_rpt:
+        cur.execute("""
+            INSERT INTO reports (report_code, system_code, report_name, target_table, cycle, template_file, has_matrix)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (report_code, system_code, report_name, target_table, cycle or "Tháng", os.path.basename(file_path), 0))
+    else:
+        cur.execute("""
+            UPDATE reports SET
+                report_name = COALESCE(NULLIF(?, ''), report_name),
+                target_table = COALESCE(NULLIF(?, ''), target_table),
+                cycle = COALESCE(NULLIF(?, ''), cycle)
+            WHERE report_code = ? AND system_code = ?
+        """, (report_name, target_table, cycle or "Tháng", report_code, system_code))
+
+    if overwrite:
+        cur.execute("DELETE FROM mappings WHERE report_code = ? AND system_code = ?", (report_code, system_code))
+
+    imported_count = 0
+    for row in data_rows:
+        row_target_tbl = row["target_table"] or target_table
+        calc_method = row["calc_method"]
+        if not calc_method:
+            calc_method = "GL_CONFIG" if row["gl_account"] else "CORE_TABLE"
+
+        cur.execute("""
+            INSERT INTO mappings (
+                system_code, report_code, field_code, field_name_vi, data_type,
+                target_table, target_column, source_system, source_table, source_column,
+                transformation_rule, notes, status, gl_account, calc_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ODS', ?, ?, ?, ?, 'Active', ?, ?)
+        """, (
+            system_code,
+            report_code,
+            row["field_code"],
+            row["field_name_vi"],
+            row["data_type"],
+            row_target_tbl,
+            row["field_code"],
+            row["source_table"],
+            row["source_column"],
+            row["transformation_rule"],
+            row["notes"],
+            row["gl_account"],
+            calc_method
+        ))
+        imported_count += 1
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success": True,
+        "system_code": system_code,
+        "report_code": report_code,
+        "report_name": report_name,
+        "target_table": target_table,
+        "imported_count": imported_count,
+        "message": f"Nạp thành công {imported_count} chỉ tiêu cho báo cáo {report_code} ({system_code})"
+    }

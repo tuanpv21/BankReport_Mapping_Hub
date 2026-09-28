@@ -189,37 +189,6 @@ def is_postgres():
     return bool(DATABASE_URL and PSYCOPG2_AVAILABLE)
 
 
-def get_db_status():
-    """Returns details about the active database engine (PostgreSQL vs SQLite) and connectivity."""
-    if not DATABASE_URL:
-        return {"engine": "SQLite", "status": "Connected (Local SQLite)", "has_db_url": False}
-    if not PSYCOPG2_AVAILABLE:
-        return {"engine": "SQLite", "status": "psycopg2 not installed, using SQLite", "has_db_url": True}
-    try:
-        raw_conn = _get_pg_raw_conn()
-        cur = raw_conn.cursor()
-        cur.execute("SELECT version();")
-        ver = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM mappings;")
-        cnt = cur.fetchone()[0]
-        cur.close()
-        raw_conn.close()
-        return {
-            "engine": "PostgreSQL",
-            "status": "Connected (Cloud Database)",
-            "version": ver.split(",")[0] if ver else "PostgreSQL",
-            "mappings_count": cnt,
-            "has_db_url": True
-        }
-    except Exception as e:
-        err_msg = str(e)
-        return {
-            "engine": "SQLite (Fallback)",
-            "status": f"Connection error: {err_msg[:120]}",
-            "has_db_url": True
-        }
-
-
 def init_schema():
     """Initializes tables for either PostgreSQL or SQLite safely."""
     if is_postgres():

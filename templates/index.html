@@ -79,6 +79,10 @@
             <i class="fa-solid fa-bolt"></i>
             <span>Bóc tách Procedure</span>
           </button>
+          <button id="btn-open-import-report-modal" class="btn btn-emerald-solid" title="Thêm mẫu báo cáo mới và nạp danh sách chỉ tiêu từ file Excel">
+            <i class="fa-solid fa-file-excel"></i>
+            <span>Thêm Báo cáo từ Excel</span>
+          </button>
           <button id="btn-open-create" class="btn btn-primary-gradient">
             <i class="fa-solid fa-plus"></i>
             <span>Thêm chỉ tiêu mới</span>
@@ -503,6 +507,10 @@
                   <i class="fa-solid fa-filter"></i>
                   <input type="text" id="report-filter-input" placeholder="Lọc mẫu báo cáo...">
                 </div>
+                <button id="btn-side-import-report" class="btn btn-outline-clean w-100 mt-2 mb-2" style="font-size:12px; justify-content:center; border: 1px dashed #059669; color:#059669; background:#ecfdf5; padding:7px 10px;" title="Tạo mẫu báo cáo mới từ file Excel">
+                  <i class="fa-solid fa-file-circle-plus"></i>
+                  <span>+ Thêm Báo cáo từ Excel</span>
+                </button>
               </div>
 
               <div class="master-list-container" id="master-reports-list"></div>
@@ -784,6 +792,16 @@
                 </div>
               </div>
               <div class="io-body">
+                <div class="mb-3 d-flex gap-2">
+                  <a href="/api/template/sample-mapping-excel" class="btn btn-outline-clean" download>
+                    <i class="fa-solid fa-download text-emerald"></i>
+                    <span>Tải File Mẫu Chuẩn (.xlsx)</span>
+                  </a>
+                  <button id="btn-io-open-import-modal" class="btn btn-emerald-solid">
+                    <i class="fa-solid fa-file-circle-plus"></i>
+                    <span>Thêm Báo cáo Mới &amp; Nạp Excel</span>
+                  </button>
+                </div>
                 <div class="dropzone-box" id="excel-dropzone">
                   <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
                   <h4>Kéo và thả file Excel (.xlsx) vào đây</h4>
@@ -1181,8 +1199,105 @@
     </div>
   </div>
 
+
+  <!-- MODAL: IMPORT NEW REPORT FROM EXCEL -->
+  <div class="modal-backdrop" id="modal-import-new-report">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-badge-sys" style="background:#059669; color:#fff;">EXCEL IMPORT</span>
+          <h3>Thêm Báo Cáo Mới &amp; Nạp Mapping từ Excel</h3>
+        </div>
+        <button class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert-info-box mb-3" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:8px; display:flex; gap:10px; align-items:flex-start;">
+          <i class="fa-solid fa-circle-info text-emerald" style="font-size:18px; margin-top:2px;"></i>
+          <div style="font-size:13px; line-height:1.5;">
+            <strong>Chức năng khởi tạo Báo cáo &amp; Ánh xạ tự động:</strong>
+            Hệ thống sẽ tự động tạo mẫu báo cáo mới vào danh mục và nạp toàn bộ các chỉ tiêu mapping từ file Excel vào cơ sở dữ liệu Supabase đám mây.
+          </div>
+        </div>
+
+        <div class="form-row-2 mb-3">
+          <div class="form-group-clean">
+            <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">1. Phân hệ / Hệ thống: *</label>
+            <select id="import-system-code" class="select-clean w-100">
+              <option value="TT35">Thông tư 35 (TT35 - NHNN)</option>
+              <option value="CIC">Thông tin Tín dụng (CIC - QĐ 573)</option>
+              <option value="GL">Sổ cái &amp; Kế toán (GL)</option>
+              <option value="RPT_QT">Báo cáo Quản trị &amp; ALCO</option>
+              <option value="CORE">Hệ thống Core Banking / ODS</option>
+            </select>
+          </div>
+          <div class="form-group-clean">
+            <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">2. Mã Báo cáo (Report Code): *</label>
+            <input type="text" id="import-report-code" class="input-clean w-100 font-bold" placeholder="Ví dụ: B01, RPT_A09, CIC_NEW...">
+            <small class="text-subtle" style="font-size:11px;">(Tự động nhận diện từ file Excel nếu để trống)</small>
+          </div>
+        </div>
+
+        <div class="form-row-2 mb-3">
+          <div class="form-group-clean">
+            <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">3. Tên Báo cáo (Report Name): *</label>
+            <input type="text" id="import-report-name" class="input-clean w-100" placeholder="Ví dụ: Báo cáo số dư tiền gửi theo kỳ hạn và lãi suất">
+          </div>
+          <div class="form-group-clean">
+            <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">4. Chu kỳ báo cáo:</label>
+            <select id="import-report-cycle" class="select-clean w-100">
+              <option value="Tháng">Hàng Tháng</option>
+              <option value="Ngày">Hàng Ngày</option>
+              <option value="Quý">Hàng Quý</option>
+              <option value="Năm">Hàng Năm</option>
+              <option value="Đột xuất">Đột xuất</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row-2 mb-3">
+          <div class="form-group-clean">
+            <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">5. Bảng đích CSDL / DWH (Target Table):</label>
+            <input type="text" id="import-target-table" class="input-clean w-100 font-mono" placeholder="Ví dụ: ODS_RPT_B01 (Tự động sinh nếu để trống)">
+          </div>
+          <div class="form-group-clean" style="display:flex; align-items:flex-end;">
+            <a href="/api/template/sample-mapping-excel" class="btn btn-outline-clean w-100" style="padding: 9px 12px; justify-content:center; text-decoration:none;" download>
+              <i class="fa-solid fa-download text-emerald"></i>
+              <span>Tải File Excel Mẫu Chuẩn (.xlsx)</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="form-group-clean mt-3">
+          <label style="font-weight:600; font-size:13px; margin-bottom:5px; display:block;">6. Chọn file Excel Mapping (.xlsx, .xls) *:</label>
+          <div class="dropzone-box" id="new-report-dropzone" style="padding: 24px; text-align: center; border: 2px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
+            <i class="fa-solid fa-file-excel drop-icon" style="font-size: 38px; color: #059669; margin-bottom: 8px;"></i>
+            <h4 id="new-report-file-name" style="margin: 0 0 6px 0; font-size: 14px; color:#1e293b;">Kéo thả file Excel vào đây hoặc bấm để chọn file</h4>
+            <p style="margin: 0; font-size: 12px; color: #64748b;">Hỗ trợ 9 cột chuẩn: STT | Table | Column | DataType | Tên nghiệp vụ | Ghi chú | Bảng nguồn | Cột nguồn | Công thức</p>
+            <input type="file" id="new-report-file-input" accept=".xlsx, .xls" style="display:none">
+          </div>
+        </div>
+
+        <div class="form-group-clean mt-3">
+          <label class="d-flex align-center gap-2" style="cursor: pointer; font-size: 13px;">
+            <input type="checkbox" id="import-overwrite-check" value="1">
+            <span>Ghi đè (Xóa sạch chỉ tiêu cũ của báo cáo này trước khi nạp mới nếu đã tồn tại)</span>
+          </label>
+        </div>
+
+        <div id="new-report-import-result" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-clean btn-close-modal">Đóng</button>
+        <button id="btn-submit-import-report" class="btn btn-emerald-solid">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>Tiến hành Nạp Báo cáo &amp; Mapping</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 <div id="toast-hub" class="toast-hub"></div>
 
-  <script src="/static/js/app.js?v=20260927_2355"></script>
+  <script src="/static/js/app.js?v=1790608035"></script>
 </body>
 </html>
